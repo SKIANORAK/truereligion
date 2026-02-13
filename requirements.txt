@@ -2,4 +2,4 @@ aiogram==3.10.0
 python-dotenv==1.0.0
 telethon==1.34.0
 pytz==2024.1
-pysocks==1.7.1  # Обязательно для SOCKS5
+# pysocks НЕ НУЖЕН

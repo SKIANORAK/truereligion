@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message, CallbackQuery
@@ -11,7 +11,7 @@ from aiogram.utils.keyboard import InlineKeyboardBuilder
 import config
 import database
 import parser
-import pytz
+import pytz 
 
 # ========== ИНИЦИАЛИЗАЦИЯ ==========
 bot = Bot(token=config.BOT_TOKEN)

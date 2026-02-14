@@ -25,27 +25,31 @@ telegram_parser = parser.TelegramParser()
 REPORT_CHANNEL_ID = config.REPORT_CHANNEL_ID
 
 # ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ДЛЯ ОТЧЕТОВ ==========
-def smart_title(text: str, max_words: int = 15, max_chars: int = 100) -> str:
+def get_title_from_text(text: str, word_limit: int = 15) -> str:
     """
-    Умное формирование заголовка из текста поста
-    - Берем первые max_words слов
-    - Обрезаем по символам если нужно
-    - Убираем лишние пробелы и спецсимволы
+    Просто берет первые word_limit слов из текста
+    Знаки препинания и пробелы не считаются
     """
     if not text:
         return "Без текста"
     
+    # Заменяем переносы строк и множественные пробелы на один пробел
     clean_text = ' '.join(text.split())
-    words = clean_text.split()[:max_words]
     
-    if not words:
+    # Разбиваем на слова (разделитель - пробел)
+    words = clean_text.split()
+    
+    # Берем первые word_limit слов
+    title_words = words[:word_limit]
+    
+    if not title_words:
         return "Без текста"
     
-    title = ' '.join(words)
+    # Собираем заголовок
+    title = ' '.join(title_words)
     
-    if len(title) > max_chars:
-        title = title[:max_chars-3] + "..."
-    elif len(clean_text.split()) > max_words:
+    # Если слов было больше лимита, добавляем многоточие
+    if len(words) > word_limit:
         title += "..."
     
     return title
@@ -57,6 +61,33 @@ def format_number(num: int) -> str:
     if num >= 1000:
         return f"{num/1000:.1f}K".replace('.0K', 'K')
     return str(num)
+
+def split_long_message(text: str, max_length: int = 3500) -> list:
+    """Разбивает длинное сообщение на части"""
+    if len(text) <= max_length:
+        return [text]
+    
+    parts = []
+    current_part = ""
+    
+    for line in text.split('\n'):
+        if len(current_part) + len(line) + 1 > max_length:
+            if current_part:
+                parts.append(current_part)
+                current_part = line + '\n'
+            else:
+                # Если одна строка слишком длинная, режем её
+                while len(line) > max_length:
+                    parts.append(line[:max_length])
+                    line = line[max_length:]
+                current_part = line + '\n'
+        else:
+            current_part += line + '\n'
+    
+    if current_part:
+        parts.append(current_part)
+    
+    return parts
 
 # ========== STATES ==========
 class ChannelStates(StatesGroup):
@@ -615,92 +646,103 @@ async def generate_weekly_report():
         weekday = weekdays[now.weekday()]
         date_str = now.strftime('%d %B %Y')
         
+        reports = []
+        
         # ========== 1. ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: ТОП ПО РЕАКЦИЯМ ==========
         reactions_posts = db.get_top_posts_by_reactions(100)
-        report_reactions = f"""📊 <b>ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: Топ-100 постов по реакциям</b>
+        if reactions_posts:
+            report_reactions = f"""📊 <b>ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: Топ-100 постов по реакциям</b>
 {weekday}, {date_str}
 
 """
-        for idx, (channel_id, username, title, message_id, reactions, post_date, post_text) in enumerate(reactions_posts, 1):
-            clean_username = username[1:] if username.startswith('@') else username
-            channel_link = f"https://t.me/{clean_username}"
-            post_link = f"https://t.me/{clean_username}/{message_id}"
+            for idx, (channel_id, username, title, message_id, reactions, post_date, post_text) in enumerate(reactions_posts, 1):
+                clean_username = username[1:] if username.startswith('@') else username
+                channel_link = f"https://t.me/{clean_username}"
+                post_link = f"https://t.me/{clean_username}/{message_id}"
+                
+                post_title = get_title_from_text(post_text, 15)
+                
+                report_reactions += f'{idx}. <a href="{channel_link}">{title}</a> | ❤️ {reactions} | <a href="{post_link}">ПОСТ</a>\n'
+                report_reactions += f'   📝 {post_title}\n\n'
             
-            post_title = smart_title(post_text)
-            
-            report_reactions += f'{idx}. <a href="{channel_link}">{title}</a> | ❤️ {reactions} | <a href="{post_link}">ПОСТ</a>\n'
-            report_reactions += f'   📝 <i>{post_title}</i>\n\n'
+            reports.append(('reactions', report_reactions))
         
         # ========== 2. ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: ТОП ПО ПРОСМОТРАМ ==========
         views_posts = db.get_top_posts_by_views(100)
-        report_views = f"""📊 <b>ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: Топ-100 постов по просмотрам</b>
+        if views_posts:
+            report_views = f"""📊 <b>ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: Топ-100 постов по просмотрам</b>
 {weekday}, {date_str}
 
 """
-        for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(views_posts, 1):
-            clean_username = username[1:] if username.startswith('@') else username
-            channel_link = f"https://t.me/{clean_username}"
-            post_link = f"https://t.me/{clean_username}/{message_id}"
+            for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(views_posts, 1):
+                clean_username = username[1:] if username.startswith('@') else username
+                channel_link = f"https://t.me/{clean_username}"
+                post_link = f"https://t.me/{clean_username}/{message_id}"
+                
+                views_formatted = format_number(views)
+                post_title = get_title_from_text(post_text, 15)
+                
+                report_views += f'{idx}. <a href="{channel_link}">{title}</a> | 👁️ {views_formatted} | <a href="{post_link}">ПОСТ</a>\n'
+                report_views += f'   📝 {post_title}\n\n'
             
-            views_formatted = format_number(views)
-            post_title = smart_title(post_text)
-            
-            report_views += f'{idx}. <a href="{channel_link}">{title}</a> | 👁️ {views_formatted} | <a href="{post_link}">ПОСТ</a>\n'
-            report_views += f'   📝 <i>{post_title}</i>\n\n'
+            reports.append(('views', report_views))
         
         # ========== 3. ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: ТОП ПО РЕПОСТАМ ==========
         forwards_posts = db.get_top_posts_by_forwards(100)
-        report_forwards = f"""📊 <b>ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-100 постов по репостам</b>
+        if forwards_posts:
+            report_forwards = f"""📊 <b>ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-100 постов по репостам</b>
 {weekday}, {date_str}
 
 """
-        for idx, (channel_id, username, title, message_id, forwards, post_date, post_text) in enumerate(forwards_posts, 1):
-            clean_username = username[1:] if username.startswith('@') else username
-            channel_link = f"https://t.me/{clean_username}"
-            post_link = f"https://t.me/{clean_username}/{message_id}"
+            for idx, (channel_id, username, title, message_id, forwards, post_date, post_text) in enumerate(forwards_posts, 1):
+                clean_username = username[1:] if username.startswith('@') else username
+                channel_link = f"https://t.me/{clean_username}"
+                post_link = f"https://t.me/{clean_username}/{message_id}"
+                
+                post_title = get_title_from_text(post_text, 15)
+                
+                report_forwards += f'{idx}. <a href="{channel_link}">{title}</a> | 🔄 {forwards} | <a href="{post_link}">ПОСТ</a>\n'
+                report_forwards += f'   📝 {post_title}\n\n'
             
-            post_title = smart_title(post_text)
-            
-            report_forwards += f'{idx}. <a href="{channel_link}">{title}</a> | 🔄 {forwards} | <a href="{post_link}">ПОСТ</a>\n'
-            report_forwards += f'   📝 <i>{post_title}</i>\n\n'
+            reports.append(('forwards', report_forwards))
         
         # ========== 4. ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: ТОП КАНАЛОВ ПО РОСТУ ==========
         growth_channels = db.get_top_channels_by_growth('30d', 100)
-        report_growth = f"""📊 <b>ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-100 каналов по росту (за 30 дней)</b>
+        if growth_channels:
+            report_growth = f"""📊 <b>ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-100 каналов по росту (за 30 дней)</b>
 {weekday}, {date_str}
 
 """
-        for idx, (channel_id, username, title, subscribers, growth_7d, growth_30d) in enumerate(growth_channels, 1):
-            clean_username = username[1:] if username.startswith('@') else username
-            channel_link = f"https://t.me/{clean_username}"
+            for idx, (channel_id, username, title, subscribers, growth_7d, growth_30d) in enumerate(growth_channels, 1):
+                clean_username = username[1:] if username.startswith('@') else username
+                channel_link = f"https://t.me/{clean_username}"
+                
+                report_growth += f'{idx}. <a href="{channel_link}">{title}</a>\n'
+                report_growth += f'   📈 {growth_30d:+.1f}% | 👥 {format_number(subscribers)} подписчиков\n\n'
             
-            report_growth += f'{idx}. <a href="{channel_link}">{title}</a>\n'
-            report_growth += f'   📈 {growth_30d:+.1f}% | 👥 {format_number(subscribers)} подписчиков\n\n'
+            reports.append(('growth', report_growth))
         
         # ========== 5. ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: ТОП МАЛЫЕ КАНАЛЫ ==========
         small_posts = db.get_top_posts_small_channels(100)
-        report_small = f"""📊 <b>ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-100 постов малых каналов (<3000 подписчиков)</b>
+        if small_posts:
+            report_small = f"""📊 <b>ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-100 постов малых каналов (<3000 подписчиков)</b>
 {weekday}, {date_str}
 
 """
-        for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(small_posts, 1):
-            clean_username = username[1:] if username.startswith('@') else username
-            channel_link = f"https://t.me/{clean_username}"
-            post_link = f"https://t.me/{clean_username}/{message_id}"
+            for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(small_posts, 1):
+                clean_username = username[1:] if username.startswith('@') else username
+                channel_link = f"https://t.me/{clean_username}"
+                post_link = f"https://t.me/{clean_username}/{message_id}"
+                
+                views_formatted = format_number(views)
+                post_title = get_title_from_text(post_text, 15)
+                
+                report_small += f'{idx}. <a href="{channel_link}">{title}</a> | 👁️ {views_formatted} | <a href="{post_link}">ПОСТ</a>\n'
+                report_small += f'   📝 {post_title}\n\n'
             
-            views_formatted = format_number(views)
-            post_title = smart_title(post_text)
-            
-            report_small += f'{idx}. <a href="{channel_link}">{title}</a> | 👁️ {views_formatted} | <a href="{post_link}">ПОСТ</a>\n'
-            report_small += f'   📝 <i>{post_title}</i>\n\n'
+            reports.append(('small', report_small))
         
-        return {
-            'reactions': report_reactions,
-            'views': report_views,
-            'forwards': report_forwards,
-            'growth': report_growth,
-            'small': report_small
-        }
+        return reports
         
     except Exception as e:
         print(f"❌ Ошибка генерации отчета: {e}")
@@ -713,19 +755,17 @@ async def send_weekly_report():
             print("⚠️ ID канала для отчетов не указан")
             return
         
-        report = await generate_weekly_report()
-        if not report:
+        reports = await generate_weekly_report()
+        if not reports:
             return
         
-        await bot.send_message(REPORT_CHANNEL_ID, report['reactions'])
-        await asyncio.sleep(1)
-        await bot.send_message(REPORT_CHANNEL_ID, report['views'])
-        await asyncio.sleep(1)
-        await bot.send_message(REPORT_CHANNEL_ID, report['forwards'])
-        await asyncio.sleep(1)
-        await bot.send_message(REPORT_CHANNEL_ID, report['growth'])
-        await asyncio.sleep(1)
-        await bot.send_message(REPORT_CHANNEL_ID, report['small'])
+        for report_name, report_text in reports:
+            # Разбиваем длинные сообщения на части
+            parts = split_long_message(report_text)
+            for part in parts:
+                await bot.send_message(REPORT_CHANNEL_ID, part)
+                await asyncio.sleep(1)  # Пауза между частями одного отчета
+            await asyncio.sleep(2)  # Пауза между разными отчетами
         
         print(f"✅ Еженедельные отчеты отправлены в {REPORT_CHANNEL_ID}")
         

@@ -7,6 +7,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.client.default import DefaultBotProperties
+
 
 import config
 import database
@@ -14,7 +16,8 @@ import parser
 import pytz 
 
 # ========== ИНИЦИАЛИЗАЦИЯ ==========
-bot = Bot(token=config.BOT_TOKEN, parse_mode="HTML")
+bot = Bot(token=config.BOT_TOKEN, default=DefaultBotProperties(parse_mode="HTML"))
+
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
@@ -529,4 +532,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n👋 Бот остановлен")
         asyncio.run(telegram_parser.close())
+
 

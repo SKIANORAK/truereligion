@@ -26,13 +26,26 @@ REPORT_CHANNEL_ID = config.REPORT_CHANNEL_ID
 
 # ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 def get_title_from_text(text: str, word_limit: int = 15) -> str:
-    """Берет первые word_limit слов из текста"""
-    if not text:
-        return "Без текста"
+    """
+    Берет первые word_limit слов из текста.
+    Слова разделяются пробелами, знаки препинания не считаются отдельными словами.
+    """
+    if not text or not isinstance(text, str) or text.strip() == "":
+        return "Нет текста"
     
-    words = text.split()[:word_limit]
-    title = ' '.join(words)
-    if len(text.split()) > word_limit:
+    # Разбиваем по пробелам и фильтруем пустые строки
+    words = text.strip().split()
+    
+    # Если нет слов после разбиения
+    if not words:
+        return "Нет текста"
+    
+    # Берем первые word_limit слов
+    first_words = words[:word_limit]
+    title = ' '.join(first_words)
+    
+    # Добавляем многоточие, если слов больше чем лимит
+    if len(words) > word_limit:
         title += "..."
     
     return title
@@ -616,8 +629,10 @@ async def generate_reactions_report():
             
             post_preview = get_title_from_text(post_text, 15)
             
-            # Простой текст со ссылками (Telegram сам сделает их кликабельными)
-            text += f"{idx}. {title} ({channel_link}) | ❤️ {reactions} | ПОСТ ({post_link})\n"
+            # Делаем название канала кликабельным
+            channel_with_link = f"[{title}]({channel_link})"
+            
+            text += f"{idx}. {channel_with_link} | ❤️ {reactions} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
         return text
@@ -650,7 +665,10 @@ async def generate_views_report():
             views_formatted = format_number(views)
             post_preview = get_title_from_text(post_text, 15)
             
-            text += f"{idx}. {title} ({channel_link}) | 👁️ {views_formatted} | ПОСТ ({post_link})\n"
+            # Делаем название канала кликабельным
+            channel_with_link = f"[{title}]({channel_link})"
+            
+            text += f"{idx}. {channel_with_link} | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
         return text
@@ -682,7 +700,10 @@ async def generate_forwards_report():
             
             post_preview = get_title_from_text(post_text, 15)
             
-            text += f"{idx}. {title} ({channel_link}) | 🔄 {forwards} | ПОСТ ({post_link})\n"
+            # Делаем название канала кликабельным
+            channel_with_link = f"[{title}]({channel_link})"
+            
+            text += f"{idx}. {channel_with_link} | 🔄 {forwards} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
         return text
@@ -711,7 +732,10 @@ async def generate_growth_report():
             clean_username = username[1:] if username.startswith('@') else username
             channel_link = f"https://t.me/{clean_username}"
             
-            text += f"{idx}. {title} ({channel_link})\n"
+            # Делаем название канала кликабельным
+            channel_with_link = f"[{title}]({channel_link})"
+            
+            text += f"{idx}. {channel_with_link}\n"
             text += f"   📈 {growth_30d:+.1f}% | 👥 {format_number(subscribers)} подписчиков\n\n"
         
         return text
@@ -739,12 +763,16 @@ async def generate_small_report():
         for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(posts, 1):
             clean_username = username[1:] if username.startswith('@') else username
             channel_link = f"https://t.me/{clean_username}"
+            # Делаем название канала кликабельным
+            channel_with_link = f"[{title}]({channel_link})"
+            
             post_link = f"https://t.me/{clean_username}/{message_id}"
             
             views_formatted = format_number(views)
+            # ОБЯЗАТЕЛЬНО передаем post_text в функцию
             post_preview = get_title_from_text(post_text, 15)
             
-            text += f"{idx}. {title} ({channel_link}) | 👁️ {views_formatted} | ПОСТ ({post_link})\n"
+            text += f"{idx}. {channel_with_link} | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
         return text

@@ -7,7 +7,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.client.default import DefaultBotProperties 
+from aiogram.client.default import DefaultBotProperties
+from html import escape  # ⬅️ ДЛЯ ЭКРАНИРОВАНИЯ СПЕЦСИМВОЛОВ
 
 import config
 import database
@@ -17,7 +18,7 @@ import pytz
 # ========== ИНИЦИАЛИЗАЦИЯ ==========
 bot = Bot(
     token=config.BOT_TOKEN,
-    default=DefaultBotProperties(parse_mode="HTML")  # ⬅️ ПРАВИЛЬНЫЙ СПОСОБ ДЛЯ НОВОЙ ВЕРСИИ
+    default=DefaultBotProperties(parse_mode="HTML")
 )
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
@@ -27,6 +28,7 @@ telegram_parser = parser.TelegramParser()
 
 # ID канала для отчетов
 REPORT_CHANNEL_ID = config.REPORT_CHANNEL_ID
+
 # ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 def get_title_from_text(text: str, word_limit: int = 15) -> str:
     """
@@ -46,7 +48,8 @@ def get_title_from_text(text: str, word_limit: int = 15) -> str:
     if len(words) > word_limit:
         title += "..."
     
-    return title
+    # Экранируем специальные HTML-символы
+    return escape(title)
 
 def format_number(num: int) -> str:
     """Форматирование чисел (1000 -> 1K)"""
@@ -803,9 +806,9 @@ async def schedule_weekly_reports():
             if now.weekday() == 5 and now.hour == 7 and now.minute == 0:
                 print("📅 Суббота 7:00 - отправляю отчеты")
                 await send_weekly_reports()
-                await asyncio.sleep(3600)  # Спим час, чтобы не отправить повторно
+                await asyncio.sleep(3600)
             else:
-                await asyncio.sleep(30)  # Проверяем каждые 30 секунд
+                await asyncio.sleep(30)
                 
     except Exception as e:
         print(f"❌ Ошибка планировщика: {e}")
@@ -858,203 +861,6 @@ async def admin_test_reports_handler(callback: CallbackQuery):
     await callback.answer("🔄 Генерирую тестовые отчеты...", show_alert=False)
     await send_weekly_reports()
     await callback.answer("✅ Тестовые отчеты отправлены!", show_alert=True)
-
-@dp.callback_query(F.data == "admin_pending")
-async def admin_pending_handler(callback: CallbackQuery):
-    """Заявки на модерацию"""
-    if callback.from_user.id != config.ADMIN_ID:
-        await callback.answer("❌ Нет прав")
-        return
-    
-    pending = db.get_pending_channels()
-    
-    if not pending:
-        await callback.message.edit_text(
-            "📭 Нет заявок на модерацию.",
-            reply_markup=InlineKeyboardBuilder()
-                .button(text="⚙️ В админку", callback_data="admin_back")
-                .button(text="🏠 В меню", callback_data="main_menu")
-                .adjust(1)
-                .as_markup()
-        )
-        await callback.answer()
-        return
-    
-    text = "📋 Заявки на модерацию:\n\n"
-    kb = InlineKeyboardBuilder()
-    
-    for channel_id, username, title, added_by, created_at in pending:
-        date_str = created_at[:10] if created_at else "давно"
-        text += f"• {title}\n  👤 {username}\n  📅 {date_str}\n  ID: {channel_id}\n\n"
-        
-        kb.button(text=f"✅ Одобрить {title[:10]}", callback_data=f"approve_{channel_id}")
-        kb.button(text=f"❌ Отклонить {title[:10]}", callback_data=f"reject_{channel_id}")
-    
-    kb.button(text="🔄 Обновить", callback_data="admin_pending")
-    kb.button(text="⚙️ В админку", callback_data="admin_back")
-    kb.button(text="🏠 В меню", callback_data="main_menu")
-    kb.adjust(1, 1)
-    
-    await callback.message.edit_text(text, reply_markup=kb.as_markup())
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("approve_"))
-async def approve_channel_handler(callback: CallbackQuery):
-    """Одобрить канал"""
-    if callback.from_user.id != config.ADMIN_ID:
-        await callback.answer("❌ Нет прав")
-        return
-    
-    channel_id = int(callback.data.replace("approve_", ""))
-    
-    if db.approve_channel(channel_id):
-        channel = db.get_channel(channel_id)
-        if channel:
-            username = channel[1]
-            try:
-                await telegram_parser.connect()
-                await telegram_parser.update_channel_stats(username, db)
-            except Exception as e:
-                print(f"⚠️ Не удалось собрать статистику: {e}")
-        
-        await callback.answer(f"✅ Канал одобрен!", show_alert=True)
-        await admin_pending_handler(callback)
-    else:
-        await callback.answer("❌ Ошибка одобрения", show_alert=True)
-
-@dp.callback_query(F.data.startswith("reject_"))
-async def reject_channel_handler(callback: CallbackQuery):
-    """Отклонить канал"""
-    if callback.from_user.id != config.ADMIN_ID:
-        await callback.answer("❌ Нет прав")
-        return
-    
-    channel_id = int(callback.data.replace("reject_", ""))
-    
-    if db.reject_channel(channel_id):
-        await callback.answer(f"✅ Канал отклонен!", show_alert=True)
-        await admin_pending_handler(callback)
-    else:
-        await callback.answer("❌ Ошибка отклонения", show_alert=True)
-
-@dp.callback_query(F.data == "admin_all_channels")
-async def admin_all_channels_handler(callback: CallbackQuery):
-    """Все каналы для админа"""
-    if callback.from_user.id != config.ADMIN_ID:
-        await callback.answer("❌ Нет прав")
-        return
-    
-    channels = db.get_all_channels()
-    
-    if not channels:
-        await callback.message.edit_text(
-            "📭 В базе нет каналов.",
-            reply_markup=InlineKeyboardBuilder()
-                .button(text="⚙️ В админку", callback_data="admin_back")
-                .button(text="🏠 В меню", callback_data="main_menu")
-                .adjust(1)
-                .as_markup()
-        )
-        await callback.answer()
-        return
-    
-    text = "📋 Все каналы в базе:\n\n"
-    kb = InlineKeyboardBuilder()
-    
-    for channel_id, username, title, status, subscribers in channels:
-        status_icon = "✅" if status == 'approved' else "⏳" if status == 'pending' else "❌"
-        text += f"{status_icon} {title}\n"
-        text += f"   👤 {username} | 👥 {subscribers:,} | ID: {channel_id}\n\n"
-        
-        if status == 'approved':
-            kb.button(text=f"🗑️ Удалить {title[:8]}", callback_data=f"delete_{channel_id}")
-        elif status == 'pending':
-            kb.button(text=f"✅ Одобрить {title[:8]}", callback_data=f"approve_{channel_id}")
-            kb.button(text=f"❌ Отклонить {title[:8]}", callback_data=f"reject_{channel_id}")
-    
-    kb.button(text="🔄 Обновить", callback_data="admin_all_channels")
-    kb.button(text="⚙️ В админку", callback_data="admin_back")
-    kb.button(text="🏠 В меню", callback_data="main_menu")
-    kb.adjust(1)
-    
-    await callback.message.edit_text(text, reply_markup=kb.as_markup())
-    await callback.answer()
-
-@dp.callback_query(F.data.startswith("delete_"))
-async def delete_channel_handler(callback: CallbackQuery):
-    """Удалить канал"""
-    if callback.from_user.id != config.ADMIN_ID:
-        await callback.answer("❌ Нет прав")
-        return
-    
-    channel_id = int(callback.data.replace("delete_", ""))
-    
-    if db.delete_channel(channel_id):
-        await callback.answer(f"✅ Канал удален!", show_alert=True)
-        await admin_all_channels_handler(callback)
-    else:
-        await callback.answer("❌ Ошибка удаления", show_alert=True)
-
-@dp.callback_query(F.data == "admin_update_stats")
-async def admin_update_stats_handler(callback: CallbackQuery):
-    """Обновить статистику всех каналов"""
-    if callback.from_user.id != config.ADMIN_ID:
-        await callback.answer("❌ Нет прав")
-        return
-    
-    await callback.answer("🔄 Начинаю обновление...", show_alert=False)
-    
-    try:
-        await telegram_parser.connect()
-        results = await telegram_parser.update_all_channels(db)
-        
-        text = f"✅ Обновлено {len(results)} каналов\n\n"
-        if results:
-            text += "Последние обновления:\n"
-            for result in results[:5]:
-                text += f"• {result['title']}: {result['subscribers']:,} подписчиков\n"
-        
-        await callback.message.answer(text, reply_markup=get_main_menu())
-    except Exception as e:
-        await callback.message.answer(f"❌ Ошибка: {str(e)}", reply_markup=get_main_menu())
-
-@dp.callback_query(F.data == "admin_back")
-async def admin_back_handler(callback: CallbackQuery):
-    """Назад в админ-панель"""
-    if callback.from_user.id != config.ADMIN_ID:
-        await callback.answer("❌ Нет прав")
-        return
-    
-    pending = db.get_pending_channels()
-    all_channels = db.get_all_channels()
-    
-    approved_count = len([c for c in all_channels if c[3] == 'approved'])
-    pending_count = len(pending)
-    total_count = len(all_channels)
-    
-    text = f"""⚙️ Панель администратора
-
-📊 Статистика:
-• Всего каналов: {total_count}
-• Одобрено: {approved_count}
-• На модерации: {pending_count}
-• Отклонено: {total_count - approved_count - pending_count}
-
-⚡ Выберите действие:"""
-    
-    kb = InlineKeyboardBuilder()
-    
-    if pending:
-        kb.button(text=f"📋 Заявки ({pending_count})", callback_data="admin_pending")
-    
-    kb.button(text="📊 Все каналы", callback_data="admin_all_channels")
-    kb.button(text="🔄 Обновить статистику", callback_data="admin_update_stats")
-    kb.button(text="📅 Отправить тестовые отчеты", callback_data="admin_test_reports")
-    kb.button(text="🏠 В меню", callback_data="main_menu")
-    kb.adjust(1)
-    
-    await callback.message.answer(text, reply_markup=kb.as_markup())
-    await callback.answer()
 
 # ========== АВТООБНОВЛЕНИЕ ==========
 async def scheduled_parser():
@@ -1116,5 +922,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n👋 Бот остановлен")
         asyncio.run(telegram_parser.close())
-
-

@@ -15,7 +15,10 @@ import parser
 import pytz 
 
 # ========== ИНИЦИАЛИЗАЦИЯ ==========
-bot = Bot(token=config.BOT_TOKEN, parse_mode="HTML")  # ВАЖНО: добавил parse_mode
+bot = Bot(
+    token=config.BOT_TOKEN,
+    default=DefaultBotProperties(parse_mode="HTML")  # ⬅️ ПРАВИЛЬНЫЙ СПОСОБ ДЛЯ НОВОЙ ВЕРСИИ
+)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
@@ -24,7 +27,6 @@ telegram_parser = parser.TelegramParser()
 
 # ID канала для отчетов
 REPORT_CHANNEL_ID = config.REPORT_CHANNEL_ID
-
 # ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
 def get_title_from_text(text: str, word_limit: int = 15) -> str:
     """
@@ -1114,4 +1116,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n👋 Бот остановлен")
         asyncio.run(telegram_parser.close())
+
 

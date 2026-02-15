@@ -99,11 +99,11 @@ async def start_handler(message: Message):
 🤖 Christian Channels Catalog
 
 📊 Реальные топы христианских каналов:
-• Топ посты по реакциям (20 лучших)
-• Топ посты по просмотрам (20 лучших)  
-• Топ посты по репостам (20 лучших)
-• Топ каналы по росту (20 лучших)
-• Топ малые каналы (<3000 подписчиков)
+• Топ посты по реакциям (15 лучших)
+• Топ посты по просмотрам (15 лучших)  
+• Топ посты по репостам (15 лучших)
+• Топ каналы по росту (15 лучших)
+• Топ малые каналы (15 лучших, <3000 подписчиков)
 
 🎯 Выбери раздел:"""
     
@@ -119,11 +119,11 @@ async def main_menu_handler(callback: CallbackQuery):
 🤖 Christian Channels Catalog
 
 📊 Реальные топы христианских каналов:
-• Топ посты по реакциям (20 лучших)
-• Топ посты по просмотрам (20 лучших)  
-• Топ посты по репостам (20 лучших)
-• Топ каналы по росту (20 лучших)
-• Топ малые каналы (<3000 подписчиков)
+• Топ посты по реакциям (15 лучших)
+• Топ посты по просмотрам (15 лучших)  
+• Топ посты по репостам (15 лучших)
+• Топ каналы по росту (15 лучших)
+• Топ малые каналы (15 лучших, <3000 подписчиков)
 
 🎯 Выбери раздел:"""
     
@@ -133,8 +133,8 @@ async def main_menu_handler(callback: CallbackQuery):
 # ========== ТОП ПОСТОВ ПО РЕАКЦИЯМ ==========
 @dp.callback_query(F.data == "top_reactions")
 async def top_reactions_handler(callback: CallbackQuery):
-    """Топ постов по реакциям (20 позиций)"""
-    posts = db.get_top_posts_by_reactions(20)
+    """Топ постов по реакциям (15 позиций)"""
+    posts = db.get_top_posts_by_reactions(15)
     
     if not posts:
         await callback.message.edit_text(
@@ -145,7 +145,7 @@ async def top_reactions_handler(callback: CallbackQuery):
         await callback.answer()
         return
     
-    text = "🏆 Топ-20 постов по реакциям:\n\n"
+    text = "🏆 Топ-15 постов по реакциям:\n\n"
     kb = InlineKeyboardBuilder()
     
     for idx, (channel_id, username, title, message_id, reactions, post_date, post_text) in enumerate(posts, 1):
@@ -179,8 +179,8 @@ async def top_reactions_handler(callback: CallbackQuery):
 # ========== ТОП ПОСТОВ ПО ПРОСМОТРАМ ==========
 @dp.callback_query(F.data == "top_views")
 async def top_views_handler(callback: CallbackQuery):
-    """Топ постов по просмотрам (20 позиций)"""
-    posts = db.get_top_posts_by_views(20)
+    """Топ постов по просмотрам (15 позиций)"""
+    posts = db.get_top_posts_by_views(15)
     
     if not posts:
         await callback.message.edit_text(
@@ -191,7 +191,7 @@ async def top_views_handler(callback: CallbackQuery):
         await callback.answer()
         return
     
-    text = "🏆 Топ-20 постов по просмотрам:\n\n"
+    text = "🏆 Топ-15 постов по просмотрам:\n\n"
     kb = InlineKeyboardBuilder()
     
     for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(posts, 1):
@@ -228,8 +228,8 @@ async def top_views_handler(callback: CallbackQuery):
 # ========== ТОП ПОСТОВ ПО РЕПОСТАМ ==========
 @dp.callback_query(F.data == "top_forwards")
 async def top_forwards_handler(callback: CallbackQuery):
-    """Топ постов по репостам (20 позиций)"""
-    posts = db.get_top_posts_by_forwards(20)
+    """Топ постов по репостам (15 позиций)"""
+    posts = db.get_top_posts_by_forwards(15)
     
     if not posts:
         await callback.message.edit_text(
@@ -240,7 +240,7 @@ async def top_forwards_handler(callback: CallbackQuery):
         await callback.answer()
         return
     
-    text = "🏆 Топ-20 постов по репостам:\n\n"
+    text = "🏆 Топ-15 постов по репостам:\n\n"
     kb = InlineKeyboardBuilder()
     
     for idx, (channel_id, username, title, message_id, forwards, post_date, post_text) in enumerate(posts, 1):
@@ -283,11 +283,11 @@ async def top_growth_handler(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("growth_"))
 async def growth_period_handler(callback: CallbackQuery):
-    """Топ каналов по росту за период (20 позиций)"""
+    """Топ каналов по росту за период (15 позиций)"""
     period = callback.data.replace("growth_", "")
     period_text = "7 дней" if period == "7d" else "30 дней"
     
-    channels = db.get_top_channels_by_growth(period, 20)
+    channels = db.get_top_channels_by_growth(period, 15)
     
     if not channels:
         await callback.message.edit_text(
@@ -298,7 +298,7 @@ async def growth_period_handler(callback: CallbackQuery):
         await callback.answer()
         return
     
-    text = f"🚀 Топ-20 каналов по росту (за {period_text}):\n\n"
+    text = f"🚀 Топ-15 каналов по росту (за {period_text}):\n\n"
     kb = InlineKeyboardBuilder()
     
     for idx, (channel_id, username, title, subscribers, growth_7d, growth_30d) in enumerate(channels, 1):
@@ -324,7 +324,7 @@ async def growth_period_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "top_small")
 async def top_small_channels_handler(callback: CallbackQuery):
     """Топ постов для каналов с менее 3000 подписчиков"""
-    posts = db.get_top_posts_small_channels(20)
+    posts = db.get_top_posts_small_channels(15)
     
     if not posts:
         await callback.message.edit_text(
@@ -340,7 +340,7 @@ async def top_small_channels_handler(callback: CallbackQuery):
     weekday = weekdays[now.weekday()]
     date_str = now.strftime('%d %B')
     
-    text = f"""📊 ТОП 2: наиболее читаемые посты каналов Каталога
+    text = f"""📊 ТОП 15: наиболее читаемые посты каналов Каталога
 (для каналов с аудиторией менее 3000 подписчиков).
 {weekday}, {date_str}
 
@@ -469,7 +469,7 @@ async def about_handler(callback: CallbackQuery):
 2. Бот собирает реальную статистику: подписчики, посты, реакции
 3. Каналы появляются в топах на основе реальных данных
 
-📊 Доступные рейтинги (ТОП-20):
+📊 Доступные рейтинги (ТОП-15):
 • Топ посты по реакциям - самые обсуждаемые посты
 • Топ посты по просмотрам - самые популярные посты
 • Топ посты по репостам - самые расшариваемые посты
@@ -605,11 +605,11 @@ async def process_channel_link(message: Message, state: FSMContext):
     
     await state.clear()
 
-# ========== НОВЫЕ ФУНКЦИИ ДЛЯ ОТЧЕТОВ (БЕЗ HTML) ==========
+# ========== ФУНКЦИИ ДЛЯ ОТЧЕТОВ (ТОП-15) ==========
 async def generate_reactions_report():
-    """Топ-20 постов по реакциям"""
+    """Топ-15 постов по реакциям"""
     try:
-        posts = db.get_top_posts_by_reactions(20)
+        posts = db.get_top_posts_by_reactions(15)
         if not posts:
             return None
         
@@ -619,7 +619,7 @@ async def generate_reactions_report():
         weekday = weekdays[now.weekday()]
         date_str = now.strftime('%d %B %Y')
         
-        text = f"📊 ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: Топ-20 постов по реакциям\n"
+        text = f"📊 ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: Топ-15 постов по реакциям\n"
         text += f"{weekday}, {date_str}\n\n"
         
         for idx, (channel_id, username, title, message_id, reactions, post_date, post_text) in enumerate(posts, 1):
@@ -642,9 +642,9 @@ async def generate_reactions_report():
         return None
 
 async def generate_views_report():
-    """Топ-20 постов по просмотрам"""
+    """Топ-15 постов по просмотрам"""
     try:
-        posts = db.get_top_posts_by_views(20)
+        posts = db.get_top_posts_by_views(15)
         if not posts:
             return None
         
@@ -654,7 +654,7 @@ async def generate_views_report():
         weekday = weekdays[now.weekday()]
         date_str = now.strftime('%d %B %Y')
         
-        text = f"📊 ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: Топ-20 постов по просмотрам\n"
+        text = f"📊 ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: Топ-15 постов по просмотрам\n"
         text += f"{weekday}, {date_str}\n\n"
         
         for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(posts, 1):
@@ -678,9 +678,9 @@ async def generate_views_report():
         return None
 
 async def generate_forwards_report():
-    """Топ-20 постов по репостам (ежемесячный)"""
+    """Топ-15 постов по репостам (ежемесячный)"""
     try:
-        posts = db.get_top_posts_by_forwards(20)
+        posts = db.get_top_posts_by_forwards(15)
         if not posts:
             return None
         
@@ -690,7 +690,7 @@ async def generate_forwards_report():
         weekday = weekdays[now.weekday()]
         date_str = now.strftime('%d %B %Y')
         
-        text = f"📊 ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-20 постов по репостам\n"
+        text = f"📊 ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-15 постов по репостам\n"
         text += f"{weekday}, {date_str}\n\n"
         
         for idx, (channel_id, username, title, message_id, forwards, post_date, post_text) in enumerate(posts, 1):
@@ -713,9 +713,9 @@ async def generate_forwards_report():
         return None
 
 async def generate_growth_report():
-    """Топ-20 каналов по росту (ежемесячный)"""
+    """Топ-15 каналов по росту (ежемесячный)"""
     try:
-        channels = db.get_top_channels_by_growth('30d', 20)
+        channels = db.get_top_channels_by_growth('30d', 15)
         if not channels:
             return None
         
@@ -725,7 +725,7 @@ async def generate_growth_report():
         weekday = weekdays[now.weekday()]
         date_str = now.strftime('%d %B %Y')
         
-        text = f"📊 ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-20 каналов по росту (за 30 дней)\n"
+        text = f"📊 ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-15 каналов по росту (за 30 дней)\n"
         text += f"{weekday}, {date_str}\n\n"
         
         for idx, (channel_id, username, title, subscribers, growth_7d, growth_30d) in enumerate(channels, 1):
@@ -745,9 +745,9 @@ async def generate_growth_report():
         return None
 
 async def generate_small_report():
-    """Топ-20 постов малых каналов (ежемесячный)"""
+    """Топ-15 постов малых каналов (ежемесячный)"""
     try:
-        posts = db.get_top_posts_small_channels(20)
+        posts = db.get_top_posts_small_channels(15)
         if not posts:
             return None
         
@@ -757,7 +757,7 @@ async def generate_small_report():
         weekday = weekdays[now.weekday()]
         date_str = now.strftime('%d %B %Y')
         
-        text = f"📊 ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-20 постов малых каналов (<3000 подписчиков)\n"
+        text = f"📊 ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-15 постов малых каналов (<3000 подписчиков)\n"
         text += f"{weekday}, {date_str}\n\n"
         
         for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(posts, 1):
@@ -769,7 +769,6 @@ async def generate_small_report():
             post_link = f"https://t.me/{clean_username}/{message_id}"
             
             views_formatted = format_number(views)
-            # ОБЯЗАТЕЛЬНО передаем post_text в функцию
             post_preview = get_title_from_text(post_text, 15)
             
             text += f"{idx}. {channel_with_link} | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
@@ -1093,7 +1092,7 @@ async def main():
     print(f"👑 Админ: {config.ADMIN_ID}")
     print(f"🔧 API_ID: {config.API_ID}")
     print(f"📁 База: christian_catalog.db")
-    print(f"📊 Топы: 20 позиций")
+    print(f"📊 Топы: 15 позиций")
     print(f"📅 Отчеты: Суббота 7:00 (Владивосток)")
     print(f"👥 Режим: Любой пользователь может добавлять каналы")
     print("="*60)

@@ -94,6 +94,13 @@ class TelegramParser:
                 if message is None or not hasattr(message, 'id'):
                     continue
                 
+                # Получаем текст сообщения
+                message_text = ""
+                if hasattr(message, 'message') and message.message:
+                    message_text = message.message
+                elif hasattr(message, 'text') and message.text:
+                    message_text = message.text
+                
                 # Считаем реакции
                 reaction_count = 0
                 if hasattr(message, 'reactions') and message.reactions:
@@ -104,7 +111,7 @@ class TelegramParser:
                         reaction_count = len(message.reactions.recent_reactions)
                 
                 views = getattr(message, 'views', 0)
-                if views == 0 and reaction_count == 0:
+                if views == 0 and reaction_count == 0 and not message_text:
                     continue
                 
                 posts.append({
@@ -112,7 +119,8 @@ class TelegramParser:
                     'date': message.date,
                     'views': views,
                     'reactions': reaction_count,
-                    'forwards': getattr(message, 'forwards', 0)
+                    'forwards': getattr(message, 'forwards', 0),
+                    'text': message_text  # ДОБАВЛЯЕМ ТЕКСТ!
                 })
             
             return posts
@@ -147,7 +155,8 @@ class TelegramParser:
                     date=post['date'],
                     views=post['views'],
                     reactions=post['reactions'],
-                    forwards=post['forwards']
+                    forwards=post['forwards'],
+                    text=post['text']  # ПЕРЕДАЕМ ТЕКСТ!
                 ):
                     saved_count += 1
             

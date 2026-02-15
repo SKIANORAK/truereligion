@@ -188,10 +188,26 @@ class Database:
         """Добавить или обновить пост"""
         with self.lock:
             try:
+                # Проверяем, существует ли уже такой пост
                 self.cursor.execute('''
-                    INSERT OR REPLACE INTO posts (channel_id, message_id, date, views, reactions, forwards, text)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (channel_id, message_id, date, views, reactions, forwards, text))
+                    SELECT id FROM posts WHERE channel_id=? AND message_id=?
+                ''', (channel_id, message_id))
+                existing = self.cursor.fetchone()
+                
+                if existing:
+                    # Обновляем существующий пост
+                    self.cursor.execute('''
+                        UPDATE posts 
+                        SET views=?, reactions=?, forwards=?, text=?
+                        WHERE channel_id=? AND message_id=?
+                    ''', (views, reactions, forwards, text, channel_id, message_id))
+                else:
+                    # Вставляем новый пост
+                    self.cursor.execute('''
+                        INSERT INTO posts (channel_id, message_id, date, views, reactions, forwards, text)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', (channel_id, message_id, date, views, reactions, forwards, text))
+                
                 self.conn.commit()
                 return True
             except Exception as e:
@@ -313,3 +329,10 @@ class Database:
             self.cursor.execute('SELECT COUNT(*) FROM posts WHERE channel_id=?', (channel_id,))
             result = self.cursor.fetchone()
             return result[0] if result else 0
+    
+    def close(self):
+        """Закрыть соединение с базой данных"""
+        with self.lock:
+            if self.conn:
+                self.conn.close()
+                print("🔌 Соединение с БД закрыто")

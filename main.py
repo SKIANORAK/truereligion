@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime, timedelta
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart, Command
-from aiogram.types import Message, CallbackQuery
+from aiogram.types import Message, CallbackQuery, ParseMode
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
@@ -14,7 +14,7 @@ import parser
 import pytz 
 
 # ========== ИНИЦИАЛИЗАЦИЯ ==========
-bot = Bot(token=config.BOT_TOKEN)  # БЕЗ HTML!
+bot = Bot(token=config.BOT_TOKEN)  # БЕЗ parse_mode!
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
@@ -629,10 +629,8 @@ async def generate_reactions_report():
             
             post_preview = get_title_from_text(post_text, 15)
             
-            # Делаем название канала кликабельным
-            channel_with_link = f"[{title}]({channel_link})"
-            
-            text += f"{idx}. {channel_with_link} | ❤️ {reactions} | [ПОСТ]({post_link})\n"
+            # Формируем строку с кликабельными ссылками
+            text += f"{idx}. [Канал]({channel_link}) | ❤️ {reactions} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
         return text
@@ -665,10 +663,8 @@ async def generate_views_report():
             views_formatted = format_number(views)
             post_preview = get_title_from_text(post_text, 15)
             
-            # Делаем название канала кликабельным
-            channel_with_link = f"[{title}]({channel_link})"
-            
-            text += f"{idx}. {channel_with_link} | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
+            # Формируем строку с кликабельными ссылками
+            text += f"{idx}. [Канал]({channel_link}) | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
         return text
@@ -700,10 +696,8 @@ async def generate_forwards_report():
             
             post_preview = get_title_from_text(post_text, 15)
             
-            # Делаем название канала кликабельным
-            channel_with_link = f"[{title}]({channel_link})"
-            
-            text += f"{idx}. {channel_with_link} | 🔄 {forwards} | [ПОСТ]({post_link})\n"
+            # Формируем строку с кликабельными ссылками
+            text += f"{idx}. [Канал]({channel_link}) | 🔄 {forwards} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
         return text
@@ -763,15 +757,13 @@ async def generate_small_report():
         for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(posts, 1):
             clean_username = username[1:] if username.startswith('@') else username
             channel_link = f"https://t.me/{clean_username}"
-            # Делаем название канала кликабельным
-            channel_with_link = f"[{title}]({channel_link})"
-            
             post_link = f"https://t.me/{clean_username}/{message_id}"
             
             views_formatted = format_number(views)
             post_preview = get_title_from_text(post_text, 15)
             
-            text += f"{idx}. {channel_with_link} | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
+            # Формируем строку с кликабельными ссылками как в примере
+            text += f"{idx}. [Канал]({channel_link}) | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
         return text
@@ -799,7 +791,8 @@ async def send_weekly_reports():
         sent_count = 0
         for name, report in reports:
             if report:
-                await bot.send_message(REPORT_CHANNEL_ID, report)
+                # Отправляем с Markdown-разметкой
+                await bot.send_message(REPORT_CHANNEL_ID, report, parse_mode=ParseMode.MARKDOWN)
                 await asyncio.sleep(2)
                 sent_count += 1
                 print(f"✅ Отчет по {name} отправлен")

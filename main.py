@@ -7,7 +7,7 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.keyboard import InlineKeyboardBuilder
-from aiogram.enums import ParseMode  # <-- ПРАВИЛЬНЫЙ ИМПОРТ
+from aiogram.enums import ParseMode
 
 import config
 import database
@@ -26,6 +26,15 @@ telegram_parser = parser.TelegramParser()
 REPORT_CHANNEL_ID = config.REPORT_CHANNEL_ID
 
 # ========== ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ ==========
+def escape_markdown(text: str) -> str:
+    """Экранирует специальные символы для Markdown"""
+    if not text:
+        return ""
+    special_chars = ['_', '*', '[', ']', '(', ')', '~', '`', '>', '#', '+', '-', '=', '|', '{', '}', '.', '!']
+    for char in special_chars:
+        text = text.replace(char, f'\\{char}')
+    return text
+
 def get_title_from_text(text: str, word_limit: int = 15) -> str:
     """
     Берет первые word_limit слов из текста.
@@ -49,7 +58,8 @@ def get_title_from_text(text: str, word_limit: int = 15) -> str:
     if len(words) > word_limit:
         title += "..."
     
-    return title
+    # Экранируем специальные символы
+    return escape_markdown(title)
 
 def format_number(num: int) -> str:
     """Форматирование чисел (1000 -> 1K)"""
@@ -152,16 +162,10 @@ async def top_reactions_handler(callback: CallbackQuery):
     for idx, (channel_id, username, title, message_id, reactions, post_date, post_text) in enumerate(posts, 1):
         date_str = post_date.strftime('%d.%m') if hasattr(post_date, 'strftime') else str(post_date)[:10]
         
-        preview = ""
-        if post_text:
-            clean_text = ' '.join(post_text.split())
-            words = clean_text.split()[:7]
-            preview = ' '.join(words)
-            if len(clean_text.split()) > 7:
-                preview += "..."
+        preview = get_title_from_text(post_text, 7)
         
         text += f"{idx}. {title}\n"
-        if preview:
+        if preview and preview != "Нет текста":
             text += f"   💬 {preview}\n"
         text += f"   ❤️ {reactions} реакций | {date_str}\n"
         
@@ -197,20 +201,12 @@ async def top_views_handler(callback: CallbackQuery):
     
     for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(posts, 1):
         date_str = post_date.strftime('%d.%m') if hasattr(post_date, 'strftime') else str(post_date)[:10]
-        views_formatted = f"{views:,}"
-        if views >= 1000:
-            views_formatted = f"{views/1000:.1f}K".replace('.0K', 'K')
+        views_formatted = format_number(views)
         
-        preview = ""
-        if post_text:
-            clean_text = ' '.join(post_text.split())
-            words = clean_text.split()[:7]
-            preview = ' '.join(words)
-            if len(clean_text.split()) > 7:
-                preview += "..."
+        preview = get_title_from_text(post_text, 7)
         
         text += f"{idx}. {title}\n"
-        if preview:
+        if preview and preview != "Нет текста":
             text += f"   💬 {preview}\n"
         text += f"   👁️ {views_formatted} просмотров | {date_str}\n"
         
@@ -247,16 +243,10 @@ async def top_forwards_handler(callback: CallbackQuery):
     for idx, (channel_id, username, title, message_id, forwards, post_date, post_text) in enumerate(posts, 1):
         date_str = post_date.strftime('%d.%m') if hasattr(post_date, 'strftime') else str(post_date)[:10]
         
-        preview = ""
-        if post_text:
-            clean_text = ' '.join(post_text.split())
-            words = clean_text.split()[:7]
-            preview = ' '.join(words)
-            if len(clean_text.split()) > 7:
-                preview += "..."
+        preview = get_title_from_text(post_text, 7)
         
         text += f"{idx}. {title}\n"
-        if preview:
+        if preview and preview != "Нет текста":
             text += f"   💬 {preview}\n"
         text += f"   🔄 {forwards} репостов | {date_str}\n"
         
@@ -350,18 +340,12 @@ async def top_small_channels_handler(callback: CallbackQuery):
     kb = InlineKeyboardBuilder()
     
     for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(posts, 1):
-        views_formatted = f"{views/1000:.1f}K".replace('.0K', 'K')
+        views_formatted = format_number(views)
         
         clean_username = username[1:] if username.startswith('@') else username
         post_link = f"https://t.me/{clean_username}/{message_id}"
         
-        preview = ""
-        if post_text:
-            clean_text = ' '.join(post_text.split())
-            words = clean_text.split()[:7]
-            preview = ' '.join(words)
-            if len(clean_text.split()) > 7:
-                preview += "..."
+        preview = get_title_from_text(post_text, 7)
         
         text += f"{idx}. {title} ({post_link}): «{preview}» — {views_formatted};\n\n"
         
@@ -397,15 +381,7 @@ async def show_post_handler(callback: CallbackQuery):
     
     post_text = db.get_post_text(channel_id, message_id)
     
-    preview_text = ""
-    if post_text:
-        clean_text = ' '.join(post_text.split())
-        words = clean_text.split()[:10]
-        preview_text = ' '.join(words)
-        if len(clean_text.split()) > 10:
-            preview_text += "..."
-    else:
-        preview_text = "Текст поста недоступен"
+    preview_text = get_title_from_text(post_text, 10)
     
     clean_username = username[1:] if username.startswith('@') else username
     link = f"https://t.me/{clean_username}/{message_id}"
@@ -763,7 +739,7 @@ async def generate_small_report():
             views_formatted = format_number(views)
             post_preview = get_title_from_text(post_text, 15)
             
-            # Формируем строку с кликабельными ссылками как в примере
+            # Формируем строку с кликабельными ссылками
             text += f"{idx}. [Канал]({channel_link}) | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
@@ -792,11 +768,19 @@ async def send_weekly_reports():
         sent_count = 0
         for name, report in reports:
             if report:
-                # Отправляем с Markdown-разметкой
-                await bot.send_message(REPORT_CHANNEL_ID, report, parse_mode=ParseMode.MARKDOWN)
-                await asyncio.sleep(2)
-                sent_count += 1
-                print(f"✅ Отчет по {name} отправлен")
+                try:
+                    await bot.send_message(REPORT_CHANNEL_ID, report, parse_mode=ParseMode.MARKDOWN)
+                    await asyncio.sleep(2)
+                    sent_count += 1
+                    print(f"✅ Отчет по {name} отправлен")
+                except Exception as e:
+                    print(f"❌ Ошибка отправки отчета по {name}: {e}")
+                    # Если Markdown не работает, пробуем отправить без форматирования
+                    try:
+                        await bot.send_message(REPORT_CHANNEL_ID, report.replace('[', '').replace('](', ' - ').replace(')', ''))
+                        print(f"✅ Отчет по {name} отправлен без форматирования")
+                    except:
+                        pass
         
         print(f"✅ Всего отправлено отчетов: {sent_count}")
         
@@ -1127,4 +1111,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n👋 Бот остановлен")
         asyncio.run(telegram_parser.close())
-

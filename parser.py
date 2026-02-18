@@ -10,20 +10,32 @@ class TelegramParser:
         self.connected = False
     
     async def connect(self):
-        """Подключение к Telegram - БЕЗ ПРОКСИ"""
+        """Подключение к Telegram"""
         try:
-            if self.connected and self.client:
+            # Если уже подключены, возвращаем True
+            if self.client and self.connected:
                 return True
+            
+            # Если клиент существует но не подключен, пробуем переподключиться
+            if self.client and not self.connected:
+                try:
+                    await self.client.connect()
+                    if await self.client.is_user_authorized():
+                        self.connected = True
+                        print("✅ Telethon переподключен")
+                        return True
+                except:
+                    pass
             
             print(f"🔗 Подключаю Telethon...")
             
+            # Создаем нового клиента
             self.client = TelegramClient(
                 'parser_session',
                 config.API_ID,
                 config.API_HASH,
-                connection_retries=5,
+                connection_retries=10,
                 timeout=30
-                # ПРОКСИ УДАЛЕН!
             )
             
             await self.client.start()
@@ -33,18 +45,46 @@ class TelegramParser:
             
         except Exception as e:
             print(f"❌ Ошибка подключения Telethon: {e}")
+            self.connected = False
             return False
+    
+    async def ensure_connected(self):
+        """Проверяет подключение и переподключает если нужно"""
+        try:
+            if not self.client or not self.connected:
+                return await self.connect()
+            
+            # Проверяем, работает ли подключение
+            try:
+                await self.client.get_me()
+                return True
+            except:
+                self.connected = False
+                return await self.connect()
+                
+        except Exception as e:
+            print(f"❌ Ошибка проверки подключения: {e}")
+            self.connected = False
+            return await self.connect()
     
     async def close(self):
         """Закрыть соединение"""
-        if self.client and self.connected:
-            await self.client.disconnect()
+        if self.client:
+            try:
+                await self.client.disconnect()
+            except:
+                pass
             self.connected = False
             print("🔌 Telethon отключен")
     
     async def get_channel_info(self, username):
         """Получить информацию о канале"""
         try:
+            # Проверяем подключение перед каждым запросом
+            if not await self.ensure_connected():
+                print(f"❌ Нет подключения к Telegram")
+                return None
+            
             if not username.startswith('@'):
                 username = '@' + username
             
@@ -84,6 +124,11 @@ class TelegramParser:
     async def get_channel_posts(self, username, limit=30):
         """Получить посты из канала"""
         try:
+            # Проверяем подключение перед каждым запросом
+            if not await self.ensure_connected():
+                print(f"❌ Нет подключения к Telegram")
+                return []
+            
             if not username.startswith('@'):
                 username = '@' + username
             
@@ -120,7 +165,7 @@ class TelegramParser:
                     'views': views,
                     'reactions': reaction_count,
                     'forwards': getattr(message, 'forwards', 0),
-                    'text': message_text  # ДОБАВЛЯЕМ ТЕКСТ!
+                    'text': message_text
                 })
             
             return posts
@@ -156,7 +201,7 @@ class TelegramParser:
                     views=post['views'],
                     reactions=post['reactions'],
                     forwards=post['forwards'],
-                    text=post['text']  # ПЕРЕДАЕМ ТЕКСТ!
+                    text=post['text']
                 ):
                     saved_count += 1
             
@@ -178,6 +223,11 @@ class TelegramParser:
     async def update_all_channels(self, db):
         """Обновить все каналы"""
         print("🔄 Начинаю обновление всех каналов...")
+        
+        # Проверяем подключение
+        if not await self.ensure_connected():
+            print("❌ Не удалось подключиться к Telegram")
+            return []
         
         channels = db.get_all_approved_channels()
         if not channels:

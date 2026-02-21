@@ -201,9 +201,10 @@ class TelegramParser:
             
             channel_id = channel[0]
             
+            # Обновляем статистику подписчиков (для роста за месяц)
             growth_7d, growth_30d = db.update_channel_stats(channel_id, info['subscribers'])
             
-            # Используем новую функцию для получения постов за последние 7 дней
+            # Получаем посты за последние 7 дней для статистики
             posts = await self.get_channel_posts_last_week(username)
             
             saved_count = 0

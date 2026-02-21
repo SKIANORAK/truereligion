@@ -27,4 +27,4 @@ REPORT_CHANNEL_ID = os.getenv("REPORT_CHANNEL_ID")
 
 # Настройки
 PARSE_INTERVAL = 1800  # 30 минут
-POSTS_LIMIT = 100  # Постов для парсинга
+# POSTS_LIMIT больше не используется, удаляем

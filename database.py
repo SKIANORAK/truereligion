@@ -143,46 +143,50 @@ class Database:
             self.cursor.execute('SELECT id, username, title, status, subscribers FROM channels ORDER BY created_at DESC')
             return self.cursor.fetchall()
     
-    def update_channel_stats(self, channel_id: int, subscribers: int):
-        """Обновить статистику канала"""
-        with self.lock:
-            try:
-                now = datetime.now().date()
-                
-                self.cursor.execute('''
-                    INSERT OR REPLACE INTO subscribers_history (channel_id, date, subscribers)
-                    VALUES (?, ?, ?)
-                ''', (channel_id, now.isoformat(), subscribers))
-                
-                week_ago = (now - timedelta(days=7)).isoformat()
-                self.cursor.execute('SELECT subscribers FROM subscribers_history WHERE channel_id=? AND date=?', 
-                                  (channel_id, week_ago))
-                week_old = self.cursor.fetchone()
-                
-                growth_7d = 0
-                if week_old and week_old[0] > 0:
-                    growth_7d = round(((subscribers - week_old[0]) / week_old[0]) * 100, 1)
-                
-                month_ago = (now - timedelta(days=30)).isoformat()
-                self.cursor.execute('SELECT subscribers FROM subscribers_history WHERE channel_id=? AND date=?', 
-                                  (channel_id, month_ago))
-                month_old = self.cursor.fetchone()
-                
-                growth_30d = 0
-                if month_old and month_old[0] > 0:
-                    growth_30d = round(((subscribers - month_old[0]) / month_old[0]) * 100, 1)
-                
-                self.cursor.execute('''
-                    UPDATE channels 
-                    SET subscribers=?, growth_7d=?, growth_30d=?, updated_at=CURRENT_TIMESTAMP
-                    WHERE id=?
-                ''', (subscribers, growth_7d, growth_30d, channel_id))
-                
-                self.conn.commit()
-                return growth_7d, growth_30d
-            except Exception as e:
-                print(f"❌ Ошибка обновления статистики: {e}")
-                return 0, 0
+def update_channel_stats(self, channel_id: int, subscribers: int):
+    """Обновить статистику канала"""
+    with self.lock:
+        try:
+            now = datetime.now().date()
+            
+            # Сохраняем историю подписчиков
+            self.cursor.execute('''
+                INSERT OR REPLACE INTO subscribers_history (channel_id, date, subscribers)
+                VALUES (?, ?, ?)
+            ''', (channel_id, now.isoformat(), subscribers))
+            
+            # Считаем рост за 7 дней
+            week_ago = (now - timedelta(days=7)).isoformat()
+            self.cursor.execute('SELECT subscribers FROM subscribers_history WHERE channel_id=? AND date=?', 
+                              (channel_id, week_ago))
+            week_old = self.cursor.fetchone()
+            
+            growth_7d = 0
+            if week_old and week_old[0] > 0:
+                growth_7d = round(((subscribers - week_old[0]) / week_old[0]) * 100, 1)
+            
+            # Считаем рост за 30 дней (для месячной статистики)
+            month_ago = (now - timedelta(days=30)).isoformat()
+            self.cursor.execute('SELECT subscribers FROM subscribers_history WHERE channel_id=? AND date=?', 
+                              (channel_id, month_ago))
+            month_old = self.cursor.fetchone()
+            
+            growth_30d = 0
+            if month_old and month_old[0] > 0:
+                growth_30d = round(((subscribers - month_old[0]) / month_old[0]) * 100, 1)
+            
+            # Обновляем данные канала
+            self.cursor.execute('''
+                UPDATE channels 
+                SET subscribers=?, growth_7d=?, growth_30d=?, updated_at=CURRENT_TIMESTAMP
+                WHERE id=?
+            ''', (subscribers, growth_7d, growth_30d, channel_id))
+            
+            self.conn.commit()
+            return growth_7d, growth_30d
+        except Exception as e:
+            print(f"❌ Ошибка обновления статистики: {e}")
+            return 0, 0
     
     def add_post(self, channel_id: int, message_id: int, date, views=0, reactions=0, forwards=0, text=''):
         """Добавить или обновить пост"""
@@ -336,3 +340,4 @@ class Database:
             if self.conn:
                 self.conn.close()
                 print("🔌 Соединение с БД закрыто")
+

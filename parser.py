@@ -121,8 +121,8 @@ class TelegramParser:
             print(f"❌ Ошибка получения {username}: {e}")
             return None
     
-    async def get_channel_posts(self, username, limit=30):
-        """Получить посты из канала"""
+    async def get_channel_posts_last_week(self, username):
+        """Получить посты из канала за последние 7 дней"""
         try:
             # Проверяем подключение перед каждым запросом
             if not await self.ensure_connected():
@@ -134,10 +134,24 @@ class TelegramParser:
             
             entity = await self.client.get_entity(username)
             
+            # Вычисляем дату 7 дней назад
+            week_ago = datetime.now() - timedelta(days=7)
+            
             posts = []
-            async for message in self.client.iter_messages(entity, limit=limit):
+            post_count = 0
+            
+            print(f"📅 Собираю посты за последние 7 дней для {username}...")
+            
+            # Собираем посты за последние 7 дней
+            async for message in self.client.iter_messages(entity, offset_date=datetime.now(), reverse=False):
                 if message is None or not hasattr(message, 'id'):
                     continue
+                
+                # Проверяем, что пост не старше 7 дней
+                if message.date.replace(tzinfo=None) < week_ago:
+                    break
+                
+                post_count += 1
                 
                 # Получаем текст сообщения
                 message_text = ""
@@ -156,8 +170,6 @@ class TelegramParser:
                         reaction_count = len(message.reactions.recent_reactions)
                 
                 views = getattr(message, 'views', 0)
-                if views == 0 and reaction_count == 0 and not message_text:
-                    continue
                 
                 posts.append({
                     'message_id': message.id,
@@ -168,6 +180,7 @@ class TelegramParser:
                     'text': message_text
                 })
             
+            print(f"📊 Собрано {post_count} постов за последние 7 дней для {username}")
             return posts
             
         except Exception as e:
@@ -190,7 +203,8 @@ class TelegramParser:
             
             growth_7d, growth_30d = db.update_channel_stats(channel_id, info['subscribers'])
             
-            posts = await self.get_channel_posts(username, limit=config.POSTS_LIMIT)
+            # Используем новую функцию для получения постов за последние 7 дней
+            posts = await self.get_channel_posts_last_week(username)
             
             saved_count = 0
             for post in posts:
@@ -205,7 +219,7 @@ class TelegramParser:
                 ):
                     saved_count += 1
             
-            print(f"✅ Обновлен {username}: {info['subscribers']} подписчиков, {saved_count} постов")
+            print(f"✅ Обновлен {username}: {info['subscribers']} подписчиков, сохранено {saved_count} постов за 7 дней")
             
             return {
                 'username': info['username'],

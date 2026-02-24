@@ -9,28 +9,60 @@ class Database:
         self.pool = None
         self.connected = False
     
-    async def connect(self):
-        """Подключение к PostgreSQL"""
-        try:
-            database_url = os.getenv("DATABASE_URL")
-            if not database_url:
-                raise Exception("❌ DATABASE_URL не найден в переменных окружения!")
-            
-            print(f"📦 Подключаюсь к PostgreSQL...")
-            self.pool = await asyncpg.create_pool(database_url)
-            self.connected = True
-            await self.create_tables()
-            print("✅ PostgreSQL подключен")
-            
-            # Проверяем количество каналов
-            async with self.pool.acquire() as conn:
-                count = await conn.fetchval("SELECT COUNT(*) FROM channels")
-                print(f"📊 В базе {count} каналов")
+    async def connect(self, max_retries=3):
+        """Подключение к PostgreSQL с повторными попытками"""
+        for attempt in range(max_retries):
+            try:
+                database_url = os.getenv("DATABASE_URL")
+                if not database_url:
+                    raise Exception("❌ DATABASE_URL не найден в переменных окружения!")
                 
-        except Exception as e:
-            print(f"❌ Ошибка подключения к PostgreSQL: {e}")
-            self.connected = False
-            raise
+                # Маскируем пароль для логов
+                masked_url = database_url.split('@')[0].split(':')[0] + ':***@' + database_url.split('@')[1]
+                print(f"📦 Подключаюсь к PostgreSQL (попытка {attempt + 1}/{max_retries})")
+                print(f"🔗 URL: {masked_url}")
+                
+                # Настройки подключения
+                self.pool = await asyncpg.create_pool(
+                    database_url,
+                    timeout=30,
+                    command_timeout=60,
+                    min_size=1,
+                    max_size=5
+                )
+                
+                # Проверяем подключение простым запросом
+                async with self.pool.acquire() as conn:
+                    await conn.execute("SELECT 1")
+                
+                self.connected = True
+                await self.create_tables()
+                print("✅ PostgreSQL подключен успешно!")
+                
+                # Проверяем количество каналов
+                async with self.pool.acquire() as conn:
+                    count = await conn.fetchval("SELECT COUNT(*) FROM channels")
+                    print(f"📊 В базе {count} каналов")
+                
+                return True
+                
+            except asyncpg.InvalidPasswordError:
+                print("❌ Неверный пароль PostgreSQL")
+                break
+                
+            except asyncpg.InvalidCatalogNameError:
+                print("❌ База данных не существует")
+                break
+                
+            except Exception as e:
+                print(f"❌ Ошибка подключения (попытка {attempt + 1}): {e}")
+                if attempt < max_retries - 1:
+                    wait_time = 2 ** attempt
+                    print(f"⏳ Повтор через {wait_time} секунд...")
+                    await asyncio.sleep(wait_time)
+                else:
+                    print("❌ Все попытки подключения исчерпаны")
+                    raise
     
     async def create_tables(self):
         """Создаем таблицы если их нет"""

@@ -206,10 +206,10 @@ class Database:
                     INSERT INTO subscribers_history (channel_id, date, subscribers)
                     VALUES ($1, $2, $3)
                     ON CONFLICT (channel_id, date) DO UPDATE SET subscribers = $3
-                ''', channel_id, now.isoformat(), subscribers)
+                ''', channel_id, now, subscribers)
                 
                 # Считаем рост за 7 дней
-                week_ago = (now - timedelta(days=7)).isoformat()
+                week_ago = (now - timedelta(days=7))
                 week_old = await conn.fetchval('''
                     SELECT subscribers FROM subscribers_history 
                     WHERE channel_id=$1 AND date=$2
@@ -220,7 +220,7 @@ class Database:
                     growth_7d = round(((subscribers - week_old) / week_old) * 100, 1)
                 
                 # Считаем рост за 30 дней
-                month_ago = (now - timedelta(days=30)).isoformat()
+                month_ago = (now - timedelta(days=30))
                 month_old = await conn.fetchval('''
                     SELECT subscribers FROM subscribers_history 
                     WHERE channel_id=$1 AND date=$2
@@ -247,6 +247,11 @@ class Database:
         """Добавить или обновить пост"""
         try:
             async with self.pool.acquire() as conn:
+                # Убеждаемся что date - это datetime объект
+                if isinstance(date, str):
+                    from dateutil import parser
+                    date = parser.parse(date)
+                
                 await conn.execute('''
                     INSERT INTO posts (channel_id, message_id, date, views, reactions, forwards, text)
                     VALUES ($1, $2, $3, $4, $5, $6, $7)
@@ -267,12 +272,13 @@ class Database:
             ''', channel_id, message_id)
             return result or ''
     
-    # ========== ТОПЫ ==========
+    # ========== ТОПЫ С ИСПРАВЛЕННЫМИ ТИПАМИ ДАТ ==========
     
     async def get_top_posts_by_reactions(self, limit=20) -> List[Tuple]:
         """Топ постов по реакциям за последние 7 дней"""
         async with self.pool.acquire() as conn:
-            week_ago = (datetime.now() - timedelta(days=7)).isoformat()
+            # ИСПРАВЛЕНО: передаем datetime объект, а не строку
+            week_ago = datetime.now() - timedelta(days=7)
             
             rows = await conn.fetch('''
                 SELECT p.channel_id, c.username, c.title, p.message_id, p.reactions, p.date, p.text
@@ -289,7 +295,8 @@ class Database:
     async def get_top_posts_by_views(self, limit=20) -> List[Tuple]:
         """Топ постов по просмотрам за последние 7 дней"""
         async with self.pool.acquire() as conn:
-            week_ago = (datetime.now() - timedelta(days=7)).isoformat()
+            # ИСПРАВЛЕНО: передаем datetime объект
+            week_ago = datetime.now() - timedelta(days=7)
             
             rows = await conn.fetch('''
                 SELECT p.channel_id, c.username, c.title, p.message_id, p.views, p.date, p.text
@@ -306,7 +313,8 @@ class Database:
     async def get_top_posts_by_forwards(self, limit=20) -> List[Tuple]:
         """Топ постов по репостам за последние 7 дней"""
         async with self.pool.acquire() as conn:
-            week_ago = (datetime.now() - timedelta(days=7)).isoformat()
+            # ИСПРАВЛЕНО: передаем datetime объект
+            week_ago = datetime.now() - timedelta(days=7)
             
             rows = await conn.fetch('''
                 SELECT p.channel_id, c.username, c.title, p.message_id, p.forwards, p.date, p.text
@@ -346,7 +354,8 @@ class Database:
     async def get_top_posts_small_channels(self, limit=20) -> List[Tuple]:
         """Топ постов для каналов с менее 3000 подписчиков за последние 7 дней"""
         async with self.pool.acquire() as conn:
-            week_ago = (datetime.now() - timedelta(days=7)).isoformat()
+            # ИСПРАВЛЕНО: передаем datetime объект
+            week_ago = datetime.now() - timedelta(days=7)
             
             rows = await conn.fetch('''
                 SELECT p.channel_id, c.username, c.title, p.message_id, p.views, p.date, p.text

@@ -20,7 +20,9 @@ storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
 db = database.Database()
-telegram_parser = parser.TelegramParser()
+telegram_parser = parser.TelegramParser() 
+
+
 
 # ID канала для отчетов
 REPORT_CHANNEL_ID = config.REPORT_CHANNEL_ID
@@ -1159,3 +1161,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n👋 Бот остановлен")
         asyncio.run(telegram_parser.close())
+

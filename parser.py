@@ -12,11 +12,9 @@ class TelegramParser:
     async def connect(self):
         """Подключение к Telegram"""
         try:
-            # Если уже подключены, возвращаем True
             if self.client and self.connected:
                 return True
             
-            # Если клиент существует но не подключен, пробуем переподключиться
             if self.client and not self.connected:
                 try:
                     await self.client.connect()
@@ -29,7 +27,6 @@ class TelegramParser:
             
             print(f"🔗 Подключаю Telethon...")
             
-            # Создаем нового клиента
             self.client = TelegramClient(
                 'parser_session',
                 config.API_ID,
@@ -54,7 +51,6 @@ class TelegramParser:
             if not self.client or not self.connected:
                 return await self.connect()
             
-            # Проверяем, работает ли подключение
             try:
                 await self.client.get_me()
                 return True
@@ -80,7 +76,6 @@ class TelegramParser:
     async def get_channel_info(self, username):
         """Получить информацию о канале"""
         try:
-            # Проверяем подключение перед каждым запросом
             if not await self.ensure_connected():
                 print(f"❌ Нет подключения к Telegram")
                 return None
@@ -124,7 +119,6 @@ class TelegramParser:
     async def get_channel_posts_last_week(self, username):
         """Получить посты из канала за последние 7 дней"""
         try:
-            # Проверяем подключение перед каждым запросом
             if not await self.ensure_connected():
                 print(f"❌ Нет подключения к Telegram")
                 return []
@@ -134,7 +128,6 @@ class TelegramParser:
             
             entity = await self.client.get_entity(username)
             
-            # Вычисляем дату 7 дней назад
             week_ago = datetime.now() - timedelta(days=7)
             
             posts = []
@@ -142,25 +135,21 @@ class TelegramParser:
             
             print(f"📅 Собираю посты за последние 7 дней для {username}...")
             
-            # Собираем посты за последние 7 дней
             async for message in self.client.iter_messages(entity, offset_date=datetime.now(), reverse=False):
                 if message is None or not hasattr(message, 'id'):
                     continue
                 
-                # Проверяем, что пост не старше 7 дней
                 if message.date.replace(tzinfo=None) < week_ago:
                     break
                 
                 post_count += 1
                 
-                # Получаем текст сообщения
                 message_text = ""
                 if hasattr(message, 'message') and message.message:
                     message_text = message.message
                 elif hasattr(message, 'text') and message.text:
                     message_text = message.text
                 
-                # Считаем реакции
                 reaction_count = 0
                 if hasattr(message, 'reactions') and message.reactions:
                     if hasattr(message.reactions, 'results'):
@@ -194,22 +183,20 @@ class TelegramParser:
             if not info:
                 return None
             
-            channel = db.get_channel_by_username(username)
+            channel = await db.get_channel_by_username(username)  # ИСПРАВЛЕНО: добавлен await
             if not channel:
                 print(f"❌ Канал {username} не найден в базе")
                 return None
             
             channel_id = channel[0]
             
-            # Обновляем статистику подписчиков (для роста за месяц)
-            growth_7d, growth_30d = db.update_channel_stats(channel_id, info['subscribers'])
+            growth_7d, growth_30d = await db.update_channel_stats(channel_id, info['subscribers'])  # ИСПРАВЛЕНО: добавлен await
             
-            # Получаем посты за последние 7 дней для статистики
             posts = await self.get_channel_posts_last_week(username)
             
             saved_count = 0
             for post in posts:
-                if db.add_post(
+                if await db.add_post(  # ИСПРАВЛЕНО: добавлен await
                     channel_id=channel_id,
                     message_id=post['message_id'],
                     date=post['date'],
@@ -239,12 +226,11 @@ class TelegramParser:
         """Обновить все каналы"""
         print("🔄 Начинаю обновление всех каналов...")
         
-        # Проверяем подключение
         if not await self.ensure_connected():
             print("❌ Не удалось подключиться к Telegram")
             return []
         
-        channels = db.get_all_approved_channels()
+        channels = await db.get_all_approved_channels()  # ИСПРАВЛЕНО: добавлен await
         if not channels:
             print("📭 Нет одобренных каналов")
             return []
@@ -257,7 +243,7 @@ class TelegramParser:
             if result:
                 results.append(result)
             
-            await asyncio.sleep(3)  # Пауза между запросами
+            await asyncio.sleep(3)
         
         print(f"✅ Обновлено {len(results)} каналов")
         return results

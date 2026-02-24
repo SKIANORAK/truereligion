@@ -14,7 +14,6 @@ import database
 import parser
 import pytz 
 import os
-import shutil
 
 # ========== ИНИЦИАЛИЗАЦИЯ ==========
 bot = Bot(token=config.BOT_TOKEN)
@@ -1129,4 +1128,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n👋 Бот остановлен")
         asyncio.run(telegram_parser.close())
+
 

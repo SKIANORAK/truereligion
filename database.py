@@ -1,3 +1,4 @@
+import os
 import sqlite3
 import threading
 from datetime import datetime, timedelta
@@ -5,11 +6,18 @@ from datetime import datetime, timedelta
 class Database:
     def __init__(self):
         self.lock = threading.Lock()
-        self.conn = sqlite3.connect('christian_catalog.db', check_same_thread=False, timeout=10)
+        
+        # Используем папку из Volume
+        data_dir = '/app/data'
+        os.makedirs(data_dir, exist_ok=True)  # Создаем папку, если её нет
+        db_path = os.path.join(data_dir, 'christian_catalog.db')
+        
+        print(f"📁 База данных: {db_path}")
+        
+        self.conn = sqlite3.connect(db_path, check_same_thread=False, timeout=10)
         self.cursor = self.conn.cursor()
         self.create_tables()
         self.migrate_posts_table()
-    
     def create_tables(self):
         """Создаем таблицы"""
         with self.lock:
@@ -340,3 +348,4 @@ class Database:
             if self.conn:
                 self.conn.close()
                 print("🔌 Соединение с БД закрыто")
+

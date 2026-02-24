@@ -8,7 +8,7 @@ from aiogram.fsm.state import State, StatesGroup
 from aiogram.fsm.storage.memory import MemoryStorage
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 from aiogram.enums import ParseMode
-    
+
 import config
 import database
 import parser
@@ -44,22 +44,17 @@ def get_title_from_text(text: str, word_limit: int = 15) -> str:
     if not text or not isinstance(text, str) or text.strip() == "":
         return "Нет текста"
     
-    # Разбиваем по пробелам и фильтруем пустые строки
     words = text.strip().split()
     
-    # Если нет слов после разбиения
     if not words:
         return "Нет текста"
     
-    # Берем первые word_limit слов
     first_words = words[:word_limit]
     title = ' '.join(first_words)
     
-    # Добавляем многоточие, если слов больше чем лимит
     if len(words) > word_limit:
         title += "..."
     
-    # Экранируем специальные символы
     return escape_markdown(title)
 
 def format_number(num: int) -> str:
@@ -101,7 +96,6 @@ def get_growth_menu():
     return kb.as_markup()
 
 def get_cancel_menu():
-    """Клавиатура с кнопкой отмены для состояния ожидания"""
     kb = InlineKeyboardBuilder()
     kb.button(text="❌ Отмена", callback_data="cancel_add_channel")
     return kb.as_markup()
@@ -162,7 +156,7 @@ async def cancel_add_channel(callback: CallbackQuery, state: FSMContext):
 @dp.callback_query(F.data == "top_reactions")
 async def top_reactions_handler(callback: CallbackQuery):
     """Топ постов по реакциям (15 позиций)"""
-    posts = db.get_top_posts_by_reactions(15)
+    posts = await db.get_top_posts_by_reactions(15)
     
     if not posts:
         text = "📭 Пока нет данных о постах с реакциями.\n\nДобавленные каналы обновляются каждые 30 минут."
@@ -202,7 +196,7 @@ async def top_reactions_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "top_views")
 async def top_views_handler(callback: CallbackQuery):
     """Топ постов по просмотрам (15 позиций)"""
-    posts = db.get_top_posts_by_views(15)
+    posts = await db.get_top_posts_by_views(15)
     
     if not posts:
         text = "📭 Пока нет данных о постах с просмотрами.\n\nДобавленные каналы обновляются каждые 30 минут."
@@ -243,7 +237,7 @@ async def top_views_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "top_forwards")
 async def top_forwards_handler(callback: CallbackQuery):
     """Топ постов по репостам (15 позиций)"""
-    posts = db.get_top_posts_by_forwards(15)
+    posts = await db.get_top_posts_by_forwards(15)
     
     if not posts:
         text = "📭 Пока нет данных о постах с репостами.\n\nДобавленные каналы обновляются каждые 30 минут."
@@ -294,7 +288,7 @@ async def growth_period_handler(callback: CallbackQuery):
     period = callback.data.replace("growth_", "")
     period_text = "7 дней" if period == "7d" else "30 дней"
     
-    channels = db.get_top_channels_by_growth(period, 15)
+    channels = await db.get_top_channels_by_growth(period, 15)
     
     if not channels:
         text = f"📭 Пока нет данных о росте каналов за {period_text}.\n\nДобавьте каналы и подождите обновления."
@@ -332,7 +326,7 @@ async def growth_period_handler(callback: CallbackQuery):
 @dp.callback_query(F.data == "top_small")
 async def top_small_channels_handler(callback: CallbackQuery):
     """Топ постов для каналов с менее 3000 подписчиков"""
-    posts = db.get_top_posts_small_channels(15)
+    posts = await db.get_top_posts_small_channels(15)
     
     if not posts:
         text = "📭 Пока нет данных о малых каналах (<3000 подписчиков).\n\nДобавленные каналы обновляются каждые 30 минут."
@@ -387,14 +381,14 @@ async def show_post_handler(callback: CallbackQuery):
     channel_id = int(channel_id)
     message_id = int(message_id)
     
-    channel = db.get_channel(channel_id)
+    channel = await db.get_channel(channel_id)
     if not channel:
         await callback.answer("❌ Канал не найден")
         return
     
     username = channel[1]
     title = channel[2]
-    post_text = db.get_post_text(channel_id, message_id)
+    post_text = await db.get_post_text(channel_id, message_id)
     preview_text = get_title_from_text(post_text, 10)
     
     clean_username = username[1:] if username.startswith('@') else username
@@ -417,7 +411,7 @@ async def show_post_handler(callback: CallbackQuery):
 async def show_channel_handler(callback: CallbackQuery):
     """Показать информацию о канале"""
     channel_id = int(callback.data.split("_")[1])
-    channel = db.get_channel(channel_id)
+    channel = await db.get_channel(channel_id)
     
     if not channel:
         await callback.answer("❌ Канал не найден")
@@ -482,7 +476,7 @@ async def about_handler(callback: CallbackQuery):
 async def add_channel_start(callback: CallbackQuery, state: FSMContext):
     """Начало добавления канала - ЛЮБОЙ ПОЛЬЗОВАТЕЛЬ"""
     user_id = callback.from_user.id
-    count = db.get_user_channels_count(user_id)
+    count = await db.get_user_channels_count(user_id)
     
     if count >= 5:
         text = "❌ Вы уже добавили 5 каналов (максимум)."
@@ -532,7 +526,7 @@ async def process_channel_link(message: Message, state: FSMContext):
         parts = link.split('t.me/')[-1].split('/')
         username = '@' + parts[0]
     
-    existing = db.get_channel_by_username(username)
+    existing = await db.get_channel_by_username(username)
     if existing:
         status = existing[5]
         if status == 'pending':
@@ -554,14 +548,13 @@ async def process_channel_link(message: Message, state: FSMContext):
         return
     
     title = f"Канал {username}"
-    if db.add_channel(username, title, message.from_user.id):
+    if await db.add_channel(username, title, message.from_user.id):
         await message.answer(
             f"✅ Заявка на канал {username} отправлена на модерацию!\n\n"
             f"Администратор проверит заявку в течение 24 часов.",
             reply_markup=get_main_menu()
         )
         
-        # Уведомление админам
         for admin_id in config.ADMIN_IDS:
             try:
                 await bot.send_message(
@@ -586,7 +579,7 @@ async def process_channel_link(message: Message, state: FSMContext):
 async def generate_reactions_report():
     """Топ-15 постов по реакциям - ЕЖЕНЕДЕЛЬНЫЙ"""
     try:
-        posts = db.get_top_posts_by_reactions(15)
+        posts = await db.get_top_posts_by_reactions(15)
         if not posts:
             return None
         
@@ -617,7 +610,7 @@ async def generate_reactions_report():
 async def generate_views_report():
     """Топ-15 постов по просмотрам - ЕЖЕНЕДЕЛЬНЫЙ"""
     try:
-        posts = db.get_top_posts_by_views(15)
+        posts = await db.get_top_posts_by_views(15)
         if not posts:
             return None
         
@@ -649,7 +642,7 @@ async def generate_views_report():
 async def generate_forwards_report():
     """Топ-15 постов по репостам - ЕЖЕНЕДЕЛЬНЫЙ"""
     try:
-        posts = db.get_top_posts_by_forwards(15)
+        posts = await db.get_top_posts_by_forwards(15)
         if not posts:
             return None
         
@@ -680,7 +673,7 @@ async def generate_forwards_report():
 async def generate_growth_report():
     """Топ-15 каналов по росту - ЕЖЕМЕСЯЧНЫЙ"""
     try:
-        channels = db.get_top_channels_by_growth('30d', 15)
+        channels = await db.get_top_channels_by_growth('30d', 15)
         if not channels:
             return None
         
@@ -710,7 +703,7 @@ async def generate_growth_report():
 async def generate_small_report():
     """Топ-15 постов малых каналов - ЕЖЕНЕДЕЛЬНЫЙ"""
     try:
-        posts = db.get_top_posts_small_channels(15)
+        posts = await db.get_top_posts_small_channels(15)
         if not posts:
             return None
         
@@ -801,8 +794,8 @@ async def admin_handler(message: Message):
         await message.answer("❌ У вас нет доступа к админ-панели")
         return
     
-    pending = db.get_pending_channels()
-    all_channels = db.get_all_channels()
+    pending = await db.get_pending_channels()
+    all_channels = await db.get_all_channels()
     
     approved_count = len([c for c in all_channels if c[3] == 'approved'])
     pending_count = len(pending)
@@ -849,7 +842,7 @@ async def admin_pending_handler(callback: CallbackQuery):
         await callback.answer("❌ Нет прав")
         return
     
-    pending = db.get_pending_channels()
+    pending = await db.get_pending_channels()
     
     if not pending:
         text = "📭 Нет заявок на модерацию."
@@ -895,8 +888,8 @@ async def approve_channel_handler(callback: CallbackQuery):
     
     channel_id = int(callback.data.replace("approve_", ""))
     
-    if db.approve_channel(channel_id):
-        channel = db.get_channel(channel_id)
+    if await db.approve_channel(channel_id):
+        channel = await db.get_channel(channel_id)
         if channel:
             username = channel[1]
             try:
@@ -919,7 +912,7 @@ async def reject_channel_handler(callback: CallbackQuery):
     
     channel_id = int(callback.data.replace("reject_", ""))
     
-    if db.reject_channel(channel_id):
+    if await db.reject_channel(channel_id):
         await callback.answer("✅ Канал отклонен!", show_alert=True)
         await admin_pending_handler(callback)
     else:
@@ -927,12 +920,12 @@ async def reject_channel_handler(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "admin_all_channels")
 async def admin_all_channels_handler(callback: CallbackQuery):
-    """Все каналы для админа - ИСПРАВЛЕНО"""
+    """Все каналы для админа"""
     if callback.from_user.id not in config.ADMIN_IDS:
         await callback.answer("❌ Нет прав")
         return
     
-    channels = db.get_all_channels()
+    channels = await db.get_all_channels()
     
     if not channels:
         text = "📭 В базе нет каналов."
@@ -985,7 +978,7 @@ async def delete_channel_handler(callback: CallbackQuery):
     
     channel_id = int(callback.data.replace("delete_", ""))
     
-    if db.delete_channel(channel_id):
+    if await db.delete_channel(channel_id):
         await callback.answer("✅ Канал удален!", show_alert=True)
         await admin_all_channels_handler(callback)
     else:
@@ -1023,8 +1016,8 @@ async def admin_back_handler(callback: CallbackQuery, state: FSMContext):
         await callback.answer("❌ Нет прав")
         return
     
-    pending = db.get_pending_channels()
-    all_channels = db.get_all_channels()
+    pending = await db.get_pending_channels()
+    all_channels = await db.get_all_channels()
     
     approved_count = len([c for c in all_channels if c[3] == 'approved'])
     pending_count = len(pending)
@@ -1073,7 +1066,7 @@ async def scheduled_parser():
 # ========== ЗАПУСК ==========
 async def main():
     print("\n" + "="*60)
-    print("🤖 CHRISTIAN CHANNELS CATALOG")
+    print("🤖 КАТАЛОГ ХРИСТИАНСКИХ КАНАЛОВ")
     print("="*60)
     
     # Подключаемся к PostgreSQL
@@ -1089,7 +1082,6 @@ async def main():
     print(f"🔧 API_ID: {config.API_ID}")
     print(f"📊 Топы: 15 позиций")
     print(f"📅 Отчеты: Суббота 7:00 (Владивосток)")
-    print(f"👥 Режим: Любой пользователь может добавлять каналы")
     print("="*60)
     
     print("\n🔗 Тестирую подключение парсера...")
@@ -1128,5 +1120,3 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n👋 Бот остановлен")
         asyncio.run(telegram_parser.close())
-
-

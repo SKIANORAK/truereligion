@@ -15,7 +15,7 @@ import parser
 import pytz 
 
 # ========== ИНИЦИАЛИЗАЦИЯ ==========
-bot = Bot(token=config.BOT_TOKEN)  # БЕЗ parse_mode!
+bot = Bot(token=config.BOT_TOKEN)
 storage = MemoryStorage()
 dp = Dispatcher(storage=storage)
 
@@ -537,7 +537,7 @@ async def add_channel_start(callback: CallbackQuery, state: FSMContext):
 
 ❌ Чтобы отменить добавление, нажми кнопку "Отмена" ниже."""
     
-    kb = get_cancel_menu()  # Используем клавиатуру с кнопкой отмены
+    kb = get_cancel_menu()
     
     # Проверяем, не такое же ли сообщение
     if callback.message.text != text or callback.message.reply_markup != kb:
@@ -562,7 +562,6 @@ async def process_channel_link(message: Message, state: FSMContext):
     if link.startswith('@'):
         username = link
     else:
-        # Обрабатываем разные форматы: t.me/username, https://t.me/username, t.me/username/123
         parts = link.split('t.me/')[-1].split('/')
         username = '@' + parts[0]
     
@@ -589,14 +588,29 @@ async def process_channel_link(message: Message, state: FSMContext):
         await state.clear()
         return
     
-    # Просто добавляем канал в базу без проверки
+    # Добавляем канал в базу
     title = f"Канал {username}"
     if db.add_channel(username, title, message.from_user.id):
+        # Отправляем подтверждение пользователю
         await message.answer(
             f"✅ Заявка на канал {username} отправлена на модерацию!\n\n"
             f"Администратор проверит заявку в течение 24 часов.",
             reply_markup=get_main_menu()
         )
+        
+        # УВЕДОМЛЕНИЕ АДМИНУ - ВАЖНО!
+        for admin_id in config.ADMIN_IDS:
+            try:
+                await bot.send_message(
+                    admin_id,
+                    f"📢 Новая заявка на добавление канала!\n\n"
+                    f"📌 Канал: {username}\n"
+                    f"👤 Добавил: @{message.from_user.username or 'нет юзернейма'} (ID: {message.from_user.id})\n"
+                    f"📅 Время: {datetime.now().strftime('%d.%m.%Y %H:%M')}\n\n"
+                    f"🔍 Проверьте заявку в админ-панели: /admin"
+                )
+            except:
+                pass
     else:
         await message.answer(
             "❌ Ошибка при добавлении канала в базу данных.",
@@ -629,8 +643,8 @@ async def generate_reactions_report():
             
             post_preview = get_title_from_text(post_text, 15)
             
-            # Формируем строку с кликабельными ссылками
-            text += f"{idx}. [Канал]({channel_link}) | ❤️ {reactions} | [ПОСТ]({post_link})\n"
+            # ИСПРАВЛЕНО: вместо [Канал] теперь [название канала]
+            text += f"{idx}. [{title}]({channel_link}) | ❤️ {reactions} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
         return text
@@ -663,8 +677,8 @@ async def generate_views_report():
             views_formatted = format_number(views)
             post_preview = get_title_from_text(post_text, 15)
             
-            # Формируем строку с кликабельными ссылками
-            text += f"{idx}. [Канал]({channel_link}) | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
+            # ИСПРАВЛЕНО: вместо [Канал] теперь [название канала]
+            text += f"{idx}. [{title}]({channel_link}) | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
         return text
@@ -674,7 +688,7 @@ async def generate_views_report():
         return None
 
 async def generate_forwards_report():
-    """Топ-15 постов по репостам (ежемесячный)"""
+    """Топ-15 постов по репостам - ИСПРАВЛЕНО на ЕЖЕНЕДЕЛЬНЫЙ"""
     try:
         posts = db.get_top_posts_by_forwards(15)
         if not posts:
@@ -686,7 +700,7 @@ async def generate_forwards_report():
         weekday = weekdays[now.weekday()]
         date_str = now.strftime('%d %B %Y')
         
-        text = f"📊 ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-15 постов по репостам\n"
+        text = f"📊 ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: Топ-15 постов по репостам\n"  # ИСПРАВЛЕНО
         text += f"{weekday}, {date_str}\n\n"
         
         for idx, (channel_id, username, title, message_id, forwards, post_date, post_text) in enumerate(posts, 1):
@@ -696,8 +710,8 @@ async def generate_forwards_report():
             
             post_preview = get_title_from_text(post_text, 15)
             
-            # Формируем строку с кликабельными ссылками
-            text += f"{idx}. [Канал]({channel_link}) | 🔄 {forwards} | [ПОСТ]({post_link})\n"
+            # ИСПРАВЛЕНО: вместо [Канал] теперь [название канала]
+            text += f"{idx}. [{title}]({channel_link}) | 🔄 {forwards} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
         return text
@@ -707,7 +721,7 @@ async def generate_forwards_report():
         return None
 
 async def generate_growth_report():
-    """Топ-15 каналов по росту (ежемесячный)"""
+    """Топ-15 каналов по росту - ИСПРАВЛЕНО на ЕЖЕНЕДЕЛЬНЫЙ"""
     try:
         channels = db.get_top_channels_by_growth('30d', 15)
         if not channels:
@@ -719,7 +733,7 @@ async def generate_growth_report():
         weekday = weekdays[now.weekday()]
         date_str = now.strftime('%d %B %Y')
         
-        text = f"📊 ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-15 каналов по росту (за 30 дней)\n"
+        text = f"📊 ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: Топ-15 каналов по росту (за 30 дней)\n"  # ИСПРАВЛЕНО
         text += f"{weekday}, {date_str}\n\n"
         
         for idx, (channel_id, username, title, subscribers, growth_7d, growth_30d) in enumerate(channels, 1):
@@ -739,7 +753,7 @@ async def generate_growth_report():
         return None
 
 async def generate_small_report():
-    """Топ-15 постов малых каналов (ежемесячный)"""
+    """Топ-15 постов малых каналов - ИСПРАВЛЕНО на ЕЖЕНЕДЕЛЬНЫЙ"""
     try:
         posts = db.get_top_posts_small_channels(15)
         if not posts:
@@ -751,7 +765,7 @@ async def generate_small_report():
         weekday = weekdays[now.weekday()]
         date_str = now.strftime('%d %B %Y')
         
-        text = f"📊 ЕЖЕМЕСЯЧНЫЙ ОТЧЕТ: Топ-15 постов малых каналов (<3000 подписчиков)\n"
+        text = f"📊 ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: Топ-15 постов малых каналов (<3000 подписчиков)\n"  # ИСПРАВЛЕНО
         text += f"{weekday}, {date_str}\n\n"
         
         for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(posts, 1):
@@ -762,8 +776,8 @@ async def generate_small_report():
             views_formatted = format_number(views)
             post_preview = get_title_from_text(post_text, 15)
             
-            # Формируем строку с кликабельными ссылками
-            text += f"{idx}. [Канал]({channel_link}) | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
+            # ИСПРАВЛЕНО: вместо [Канал] теперь [название канала]
+            text += f"{idx}. [{title}]({channel_link}) | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
         return text
@@ -832,8 +846,8 @@ async def schedule_weekly_reports():
 # ========== АДМИН ПАНЕЛЬ ==========
 @dp.message(Command("admin"))
 async def admin_handler(message: Message):
-    """Админ-панель"""
-    if message.from_user.id != config.ADMIN_ID:
+    """Админ-панель - ИСПРАВЛЕНО для поддержки нескольких админов"""
+    if message.from_user.id not in config.ADMIN_IDS:  # ИСПРАВЛЕНО
         await message.answer("❌ У вас нет доступа к админ-панели")
         return
     
@@ -869,8 +883,8 @@ async def admin_handler(message: Message):
 
 @dp.callback_query(F.data == "admin_test_reports")
 async def admin_test_reports_handler(callback: CallbackQuery):
-    """Тестовые отчеты"""
-    if callback.from_user.id != config.ADMIN_ID:
+    """Тестовые отчеты - ИСПРАВЛЕНО для поддержки нескольких админов"""
+    if callback.from_user.id not in config.ADMIN_IDS:  # ИСПРАВЛЕНО
         await callback.answer("❌ Нет прав")
         return
     
@@ -880,8 +894,8 @@ async def admin_test_reports_handler(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "admin_pending")
 async def admin_pending_handler(callback: CallbackQuery):
-    """Заявки на модерацию"""
-    if callback.from_user.id != config.ADMIN_ID:
+    """Заявки на модерацию - ИСПРАВЛЕНО для поддержки нескольких админов"""
+    if callback.from_user.id not in config.ADMIN_IDS:  # ИСПРАВЛЕНО
         await callback.answer("❌ Нет прав")
         return
     
@@ -893,7 +907,6 @@ async def admin_pending_handler(callback: CallbackQuery):
         kb.button(text="⚙️ В админку", callback_data="admin_back")
         kb.button(text="🏠 В меню", callback_data="main_menu")
         
-        # Проверяем, не такое же ли сообщение
         if callback.message.text != text or callback.message.reply_markup != kb.adjust(1).as_markup():
             await callback.message.edit_text(text, reply_markup=kb.adjust(1).as_markup())
         
@@ -915,7 +928,6 @@ async def admin_pending_handler(callback: CallbackQuery):
     kb.button(text="🏠 В меню", callback_data="main_menu")
     kb.adjust(1, 1)
     
-    # Проверяем, не такое же ли сообщение
     if callback.message.text != text or callback.message.reply_markup != kb.as_markup():
         await callback.message.edit_text(text, reply_markup=kb.as_markup())
     
@@ -923,8 +935,8 @@ async def admin_pending_handler(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("approve_"))
 async def approve_channel_handler(callback: CallbackQuery):
-    """Одобрить канал"""
-    if callback.from_user.id != config.ADMIN_ID:
+    """Одобрить канал - ИСПРАВЛЕНО для поддержки нескольких админов"""
+    if callback.from_user.id not in config.ADMIN_IDS:  # ИСПРАВЛЕНО
         await callback.answer("❌ Нет прав")
         return
     
@@ -947,8 +959,8 @@ async def approve_channel_handler(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("reject_"))
 async def reject_channel_handler(callback: CallbackQuery):
-    """Отклонить канал"""
-    if callback.from_user.id != config.ADMIN_ID:
+    """Отклонить канал - ИСПРАВЛЕНО для поддержки нескольких админов"""
+    if callback.from_user.id not in config.ADMIN_IDS:  # ИСПРАВЛЕНО
         await callback.answer("❌ Нет прав")
         return
     
@@ -962,8 +974,8 @@ async def reject_channel_handler(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "admin_all_channels")
 async def admin_all_channels_handler(callback: CallbackQuery):
-    """Все каналы для админа"""
-    if callback.from_user.id != config.ADMIN_ID:
+    """Все каналы для админа - ИСПРАВЛЕНО для поддержки нескольких админов"""
+    if callback.from_user.id not in config.ADMIN_IDS:  # ИСПРАВЛЕНО
         await callback.answer("❌ Нет прав")
         return
     
@@ -975,7 +987,6 @@ async def admin_all_channels_handler(callback: CallbackQuery):
         kb.button(text="⚙️ В админку", callback_data="admin_back")
         kb.button(text="🏠 В меню", callback_data="main_menu")
         
-        # Проверяем, не такое же ли сообщение
         if callback.message.text != text or callback.message.reply_markup != kb.adjust(1).as_markup():
             await callback.message.edit_text(text, reply_markup=kb.adjust(1).as_markup())
         
@@ -1001,7 +1012,6 @@ async def admin_all_channels_handler(callback: CallbackQuery):
     kb.button(text="🏠 В меню", callback_data="main_menu")
     kb.adjust(1)
     
-    # Проверяем, не такое же ли сообщение
     if callback.message.text != text or callback.message.reply_markup != kb.as_markup():
         await callback.message.edit_text(text, reply_markup=kb.as_markup())
     
@@ -1009,8 +1019,8 @@ async def admin_all_channels_handler(callback: CallbackQuery):
 
 @dp.callback_query(F.data.startswith("delete_"))
 async def delete_channel_handler(callback: CallbackQuery):
-    """Удалить канал"""
-    if callback.from_user.id != config.ADMIN_ID:
+    """Удалить канал - ИСПРАВЛЕНО для поддержки нескольких админов"""
+    if callback.from_user.id not in config.ADMIN_IDS:  # ИСПРАВЛЕНО
         await callback.answer("❌ Нет прав")
         return
     
@@ -1024,8 +1034,8 @@ async def delete_channel_handler(callback: CallbackQuery):
 
 @dp.callback_query(F.data == "admin_update_stats")
 async def admin_update_stats_handler(callback: CallbackQuery):
-    """Обновить статистику всех каналов"""
-    if callback.from_user.id != config.ADMIN_ID:
+    """Обновить статистику всех каналов - ИСПРАВЛЕНО для поддержки нескольких админов"""
+    if callback.from_user.id not in config.ADMIN_IDS:  # ИСПРАВЛЕНО
         await callback.answer("❌ Нет прав")
         return
     
@@ -1050,7 +1060,7 @@ async def admin_back_handler(callback: CallbackQuery, state: FSMContext):
     """Назад в админ-панель"""
     await state.clear()
     
-    if callback.from_user.id != config.ADMIN_ID:
+    if callback.from_user.id not in config.ADMIN_IDS:  # ИСПРАВЛЕНО
         await callback.answer("❌ Нет прав")
         return
     
@@ -1082,7 +1092,6 @@ async def admin_back_handler(callback: CallbackQuery, state: FSMContext):
     kb.button(text="🏠 В меню", callback_data="main_menu")
     kb.adjust(1)
     
-    # Проверяем, не такое же ли сообщение
     if callback.message.text != text or callback.message.reply_markup != kb.as_markup():
         await callback.message.edit_text(text, reply_markup=kb.as_markup())
     else:
@@ -1106,7 +1115,7 @@ async def main():
     print("\n" + "="*60)
     print("🤖 CHRISTIAN CHANNELS CATALOG")
     print("="*60)
-    print(f"👑 Админ: {config.ADMIN_ID}")
+    print(f"👑 Админы: {config.ADMIN_IDS}")  # ИСПРАВЛЕНО
     print(f"🔧 API_ID: {config.API_ID}")
     print(f"📁 База: christian_catalog.db")
     print(f"📊 Топы: 15 позиций")

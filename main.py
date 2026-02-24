@@ -710,31 +710,18 @@ async def generate_small_report():
         if not posts:
             return None
         
-        vladivostok_tz = pytz.timezone('Asia/Vladivostok')
-        now = datetime.now(vladivostok_tz)
-        weekdays = ["Понедельник", "Вторник", "Среда", "Четверг", "Пятница", "Суббота", "Воскресенье"]
-        weekday = weekdays[now.weekday()]
-        date_str = now.strftime('%d %B %Y')
-        
-        text = f"📊 ЕЖЕНЕДЕЛЬНЫЙ ОТЧЕТ: Топ-15 постов малых каналов (<3000 подписчиков)\n"
-        text += f"{weekday}, {date_str}\n\n"
-        
-        for idx, (channel_id, username, title, message_id, views, post_date, post_text) in enumerate(posts, 1):
-            clean_username = username[1:] if username.startswith('@') else username
-            channel_link = f"https://t.me/{clean_username}"
-            post_link = f"https://t.me/{clean_username}/{message_id}"
-            views_formatted = format_number(views)
-            post_preview = get_title_from_text(post_text, 15)
-            
-            # ИСПРАВЛЕНО: Используем title (название канала) вместо username
-            text += f"{idx}. [{title}]({channel_link}) | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
-            text += f"   📝 {post_preview}\n\n"
-        
-        return text
-        
-    except Exception as e:
-        print(f"Ошибка генерации отчета по малым каналам: {e}")
-        return None
+        # ДИАГНОСТИКА - посмотрим что приходит
+        print("=== ДИАГНОСТИКА ===")
+        for idx, post in enumerate(posts[:1]):  # первый пост
+            print(f"Пост {idx}:")
+            print(f"  channel_id: {post[0]}")
+            print(f"  username: {post[1]}")
+            print(f"  title: {post[2]}")
+            print(f"  message_id: {post[3]}")
+            print(f"  views: {post[4]}")
+            print(f"  date: {post[5]}")
+            print(f"  text: {post[6][:50]}...")
+        print("====================")
 
 async def send_weekly_reports():
     """Отправка всех отчетов"""
@@ -1132,4 +1119,5 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n👋 Бот остановлен")
         asyncio.run(telegram_parser.close())
+
 

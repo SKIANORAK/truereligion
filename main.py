@@ -975,9 +975,10 @@ async def reject_channel_handler(callback: CallbackQuery):
         await callback.answer("❌ Ошибка отклонения", show_alert=True)
 
 @dp.callback_query(F.data == "admin_all_channels")
+@dp.callback_query(F.data == "admin_all_channels")
 async def admin_all_channels_handler(callback: CallbackQuery):
-    """Все каналы для админа - ИСПРАВЛЕНО для поддержки нескольких админов"""
-    if callback.from_user.id not in config.ADMIN_IDS:  # ИСПРАВЛЕНО
+    """Все каналы для админа - ИСПРАВЛЕНО"""
+    if callback.from_user.id not in config.ADMIN_IDS:
         await callback.answer("❌ Нет прав")
         return
     
@@ -989,10 +990,43 @@ async def admin_all_channels_handler(callback: CallbackQuery):
         kb.button(text="⚙️ В админку", callback_data="admin_back")
         kb.button(text="🏠 В меню", callback_data="main_menu")
         
+        # ПРОВЕРЯЕМ, ИЗМЕНИЛОСЬ ЛИ СООБЩЕНИЕ
         if callback.message.text != text or callback.message.reply_markup != kb.adjust(1).as_markup():
             await callback.message.edit_text(text, reply_markup=kb.adjust(1).as_markup())
         
         await callback.answer()
+        return
+    
+    text = "📋 Все каналы в базе:\n\n"
+    kb = InlineKeyboardBuilder()
+    
+    for channel_id, username, title, status, subscribers in channels:
+        status_icon = "✅" if status == 'approved' else "⏳" if status == 'pending' else "❌"
+        text += f"{status_icon} {title}\n"
+        text += f"   👤 {username} | 👥 {subscribers:,} | ID: {channel_id}\n\n"
+        
+        if status == 'approved':
+            short_title = title[:15] + "..." if len(title) > 15 else title
+            kb.button(text=f"🗑️ Удалить {short_title}", callback_data=f"delete_{channel_id}")
+        elif status == 'pending':
+            short_title = title[:10] + "..." if len(title) > 10 else title
+            kb.button(text=f"✅ Одобрить {short_title}", callback_data=f"approve_{channel_id}")
+            kb.button(text=f"❌ Отклонить {short_title}", callback_data=f"reject_{channel_id}")
+    
+    kb.button(text="🔄 Обновить", callback_data="admin_all_channels")
+    kb.button(text="⚙️ В админку", callback_data="admin_back")
+    kb.button(text="🏠 В меню", callback_data="main_menu")
+    kb.adjust(1)
+    
+    # ГЛАВНОЕ: ПРОВЕРЯЕМ, ИЗМЕНИЛОСЬ ЛИ СООБЩЕНИЕ
+    new_markup = kb.as_markup()
+    if callback.message.text != text or callback.message.reply_markup != new_markup:
+        await callback.message.edit_text(text, reply_markup=new_markup)
+    else:
+        # Если не изменилось - просто отвечаем без редактирования
+        await callback.answer("✅ Данные актуальны")
+    
+    await callback.answer()
         return
     
     text = "📋 Все каналы в базе:\n\n"
@@ -1161,5 +1195,6 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n👋 Бот остановлен")
         asyncio.run(telegram_parser.close())
+
 
 

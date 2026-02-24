@@ -1073,22 +1073,21 @@ async def scheduled_parser():
 
 # ========== ЗАПУСК ==========
 async def main():
-    # Проверка файловой системы
     print("\n" + "="*60)
     print("🤖 CHRISTIAN CHANNELS CATALOG")
     print("="*60)
     
-    # Копируем БД если есть
-    if os.path.exists('/app/data/christian_catalog.db'):
-        try:
-            shutil.copy2('/app/data/christian_catalog.db', '/app/christian_catalog.db')
-            print("📦 БД скопирована из Volume")
-        except:
-            pass
+    # Подключаемся к PostgreSQL
+    try:
+        await db.connect()
+        print("✅ База данных: PostgreSQL")
+    except Exception as e:
+        print(f"❌ Критическая ошибка: не удалось подключиться к БД")
+        print(f"❌ {e}")
+        return
     
     print(f"👑 Админы: {config.ADMIN_IDS}")
     print(f"🔧 API_ID: {config.API_ID}")
-    print(f"📁 База: /app/data/christian_catalog.db")
     print(f"📊 Топы: 15 позиций")
     print(f"📅 Отчеты: Суббота 7:00 (Владивосток)")
     print(f"👥 Режим: Любой пользователь может добавлять каналы")

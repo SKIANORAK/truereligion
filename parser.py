@@ -128,6 +128,7 @@ class TelegramParser:
             
             entity = await self.client.get_entity(username)
             
+            # ИСПРАВЛЕНО: Используем naive datetime (без часового пояса)
             week_ago = datetime.now() - timedelta(days=7)
             
             posts = []
@@ -139,7 +140,10 @@ class TelegramParser:
                 if message is None or not hasattr(message, 'id'):
                     continue
                 
-                if message.date.replace(tzinfo=None) < week_ago:
+                # ИСПРАВЛЕНО: Убираем часовой пояс из даты сообщения
+                message_date = message.date.replace(tzinfo=None)
+                
+                if message_date < week_ago:
                     break
                 
                 post_count += 1
@@ -159,13 +163,14 @@ class TelegramParser:
                         reaction_count = len(message.reactions.recent_reactions)
                 
                 views = getattr(message, 'views', 0)
+                forwards = getattr(message, 'forwards', 0)
                 
                 posts.append({
                     'message_id': message.id,
-                    'date': message.date,
+                    'date': message_date,  # Уже naive datetime
                     'views': views,
                     'reactions': reaction_count,
-                    'forwards': getattr(message, 'forwards', 0),
+                    'forwards': forwards,
                     'text': message_text
                 })
             
@@ -183,20 +188,20 @@ class TelegramParser:
             if not info:
                 return None
             
-            channel = await db.get_channel_by_username(username)  # ИСПРАВЛЕНО: добавлен await
+            channel = await db.get_channel_by_username(username)
             if not channel:
                 print(f"❌ Канал {username} не найден в базе")
                 return None
             
             channel_id = channel[0]
             
-            growth_7d, growth_30d = await db.update_channel_stats(channel_id, info['subscribers'])  # ИСПРАВЛЕНО: добавлен await
+            growth_7d, growth_30d = await db.update_channel_stats(channel_id, info['subscribers'])
             
             posts = await self.get_channel_posts_last_week(username)
             
             saved_count = 0
             for post in posts:
-                if await db.add_post(  # ИСПРАВЛЕНО: добавлен await
+                if await db.add_post(
                     channel_id=channel_id,
                     message_id=post['message_id'],
                     date=post['date'],
@@ -230,7 +235,7 @@ class TelegramParser:
             print("❌ Не удалось подключиться к Telegram")
             return []
         
-        channels = await db.get_all_approved_channels()  # ИСПРАВЛЕНО: добавлен await
+        channels = await db.get_all_approved_channels()
         if not channels:
             print("📭 Нет одобренных каналов")
             return []

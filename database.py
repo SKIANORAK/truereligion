@@ -17,12 +17,10 @@ class Database:
                 if not database_url:
                     raise Exception("❌ DATABASE_URL не найден в переменных окружения!")
                 
-                # Маскируем пароль для логов
                 masked_url = database_url.split('@')[0].split(':')[0] + ':***@' + database_url.split('@')[1]
                 print(f"📦 Подключаюсь к PostgreSQL (попытка {attempt + 1}/{max_retries})")
                 print(f"🔗 URL: {masked_url}")
                 
-                # Настройки подключения
                 self.pool = await asyncpg.create_pool(
                     database_url,
                     timeout=30,
@@ -31,7 +29,6 @@ class Database:
                     max_size=5
                 )
                 
-                # Проверяем подключение простым запросом
                 async with self.pool.acquire() as conn:
                     await conn.execute("SELECT 1")
                 
@@ -39,7 +36,6 @@ class Database:
                 await self.create_tables()
                 print("✅ PostgreSQL подключен успешно!")
                 
-                # Проверяем количество каналов
                 async with self.pool.acquire() as conn:
                     count = await conn.fetchval("SELECT COUNT(*) FROM channels")
                     print(f"📊 В базе {count} каналов")
@@ -67,7 +63,6 @@ class Database:
     async def create_tables(self):
         """Создаем таблицы если их нет"""
         async with self.pool.acquire() as conn:
-            # Каналы
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS channels (
                     id SERIAL PRIMARY KEY,
@@ -84,7 +79,6 @@ class Database:
                 )
             ''')
             
-            # Посты
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS posts (
                     id SERIAL PRIMARY KEY,
@@ -99,7 +93,6 @@ class Database:
                 )
             ''')
             
-            # История подписчиков
             await conn.execute('''
                 CREATE TABLE IF NOT EXISTS subscribers_history (
                     id SERIAL PRIMARY KEY,
@@ -154,7 +147,6 @@ class Database:
         """Удалить канал полностью"""
         try:
             async with self.pool.acquire() as conn:
-                # Посты удалятся автоматически (ON DELETE CASCADE)
                 await conn.execute('''
                     DELETE FROM channels WHERE id = $1
                 ''', channel_id)
@@ -201,15 +193,13 @@ class Database:
             async with self.pool.acquire() as conn:
                 now = datetime.now().date()
                 
-                # Сохраняем историю
                 await conn.execute('''
                     INSERT INTO subscribers_history (channel_id, date, subscribers)
                     VALUES ($1, $2, $3)
                     ON CONFLICT (channel_id, date) DO UPDATE SET subscribers = $3
                 ''', channel_id, now, subscribers)
                 
-                # Считаем рост за 7 дней
-                week_ago = (now - timedelta(days=7))
+                week_ago = now - timedelta(days=7)
                 week_old = await conn.fetchval('''
                     SELECT subscribers FROM subscribers_history 
                     WHERE channel_id=$1 AND date=$2
@@ -219,8 +209,7 @@ class Database:
                 if week_old and week_old > 0:
                     growth_7d = round(((subscribers - week_old) / week_old) * 100, 1)
                 
-                # Считаем рост за 30 дней
-                month_ago = (now - timedelta(days=30))
+                month_ago = now - timedelta(days=30)
                 month_old = await conn.fetchval('''
                     SELECT subscribers FROM subscribers_history 
                     WHERE channel_id=$1 AND date=$2
@@ -230,7 +219,6 @@ class Database:
                 if month_old and month_old > 0:
                     growth_30d = round(((subscribers - month_old) / month_old) * 100, 1)
                 
-                # Обновляем канал
                 await conn.execute('''
                     UPDATE channels 
                     SET subscribers=$1, growth_7d=$2, growth_30d=$3, updated_at=CURRENT_TIMESTAMP
@@ -247,10 +235,14 @@ class Database:
         """Добавить или обновить пост"""
         try:
             async with self.pool.acquire() as conn:
-                # Убеждаемся что date - это datetime объект
+                # ИСПРАВЛЕНО: Приводим дату к правильному формату
                 if isinstance(date, str):
                     from dateutil import parser
                     date = parser.parse(date)
+                
+                # ИСПРАВЛЕНО: Убираем часовой пояс если есть
+                if hasattr(date, 'tzinfo') and date.tzinfo is not None:
+                    date = date.replace(tzinfo=None)
                 
                 await conn.execute('''
                     INSERT INTO posts (channel_id, message_id, date, views, reactions, forwards, text)
@@ -272,12 +264,11 @@ class Database:
             ''', channel_id, message_id)
             return result or ''
     
-    # ========== ТОПЫ С ИСПРАВЛЕННЫМИ ТИПАМИ ДАТ ==========
+    # ========== ТОПЫ ==========
     
     async def get_top_posts_by_reactions(self, limit=20) -> List[Tuple]:
         """Топ постов по реакциям за последние 7 дней"""
         async with self.pool.acquire() as conn:
-            # ИСПРАВЛЕНО: передаем datetime объект, а не строку
             week_ago = datetime.now() - timedelta(days=7)
             
             rows = await conn.fetch('''
@@ -295,7 +286,6 @@ class Database:
     async def get_top_posts_by_views(self, limit=20) -> List[Tuple]:
         """Топ постов по просмотрам за последние 7 дней"""
         async with self.pool.acquire() as conn:
-            # ИСПРАВЛЕНО: передаем datetime объект
             week_ago = datetime.now() - timedelta(days=7)
             
             rows = await conn.fetch('''
@@ -313,7 +303,6 @@ class Database:
     async def get_top_posts_by_forwards(self, limit=20) -> List[Tuple]:
         """Топ постов по репостам за последние 7 дней"""
         async with self.pool.acquire() as conn:
-            # ИСПРАВЛЕНО: передаем datetime объект
             week_ago = datetime.now() - timedelta(days=7)
             
             rows = await conn.fetch('''
@@ -354,7 +343,6 @@ class Database:
     async def get_top_posts_small_channels(self, limit=20) -> List[Tuple]:
         """Топ постов для каналов с менее 3000 подписчиков за последние 7 дней"""
         async with self.pool.acquire() as conn:
-            # ИСПРАВЛЕНО: передаем datetime объект
             week_ago = datetime.now() - timedelta(days=7)
             
             rows = await conn.fetch('''

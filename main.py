@@ -427,7 +427,7 @@ async def show_channel_handler(callback: CallbackQuery):
 • Подписчики: {subscribers:,}
 • Рост за 7 дней: {growth_7d:+.1f}%
 • Рост за 30 дней: {growth_30d:+.1f}%
-• Обновлено: {updated_at[:16] if updated_at else 'сегодня'}"""
+• Обновлено: {updated_at.strftime('%Y-%m-%d %H:%M') if updated_at else 'сегодня'}"""
     
     clean_username = username[1:] if username.startswith('@') else username
     link = f"https://t.me/{clean_username}"
@@ -861,7 +861,15 @@ async def admin_pending_handler(callback: CallbackQuery):
     kb = InlineKeyboardBuilder()
     
     for channel_id, username, title, added_by, created_at in pending:
-        date_str = created_at[:10] if created_at else "давно"
+        # ИСПРАВЛЕНО: created_at - это datetime объект
+        if created_at:
+            if isinstance(created_at, datetime):
+                date_str = created_at.strftime('%Y-%m-%d')
+            else:
+                date_str = str(created_at)[:10]
+        else:
+            date_str = "давно"
+        
         text += f"• {title}\n  👤 {username}\n  📅 {date_str}\n  ID: {channel_id}\n\n"
         
         short_title = title[:10] + "..." if len(title) > 10 else title

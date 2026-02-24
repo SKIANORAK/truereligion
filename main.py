@@ -598,6 +598,7 @@ async def generate_reactions_report():
             post_link = f"https://t.me/{clean_username}/{message_id}"
             post_preview = get_title_from_text(post_text, 15)
             
+            # ИСПРАВЛЕНО: Используем title (название канала) вместо username
             text += f"{idx}. [{title}]({channel_link}) | ❤️ {reactions} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
@@ -630,6 +631,7 @@ async def generate_views_report():
             views_formatted = format_number(views)
             post_preview = get_title_from_text(post_text, 15)
             
+            # ИСПРАВЛЕНО: Используем title (название канала) вместо username
             text += f"{idx}. [{title}]({channel_link}) | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
@@ -661,6 +663,7 @@ async def generate_forwards_report():
             post_link = f"https://t.me/{clean_username}/{message_id}"
             post_preview = get_title_from_text(post_text, 15)
             
+            # ИСПРАВЛЕНО: Используем title (название канала) вместо username
             text += f"{idx}. [{title}]({channel_link}) | 🔄 {forwards} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
@@ -723,6 +726,7 @@ async def generate_small_report():
             views_formatted = format_number(views)
             post_preview = get_title_from_text(post_text, 15)
             
+            # ИСПРАВЛЕНО: Используем title (название канала) вместо username
             text += f"{idx}. [{title}]({channel_link}) | 👁️ {views_formatted} | [ПОСТ]({post_link})\n"
             text += f"   📝 {post_preview}\n\n"
         
@@ -1128,3 +1132,4 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n👋 Бот остановлен")
         asyncio.run(telegram_parser.close())
+

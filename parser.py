@@ -1,4 +1,5 @@
 import asyncio
+import os
 from datetime import datetime, timedelta
 from telethon import TelegramClient, errors
 from telethon.tl.functions.channels import GetFullChannelRequest
@@ -12,18 +13,22 @@ class TelegramParser:
     async def connect(self):
         """Подключение к Telegram"""
         try:
-            if self.client and self.connected:
-                return True
-            
-            if self.client and not self.connected:
+            # Закрываем старое соединение если есть
+            if self.client:
                 try:
-                    await self.client.connect()
-                    if await self.client.is_user_authorized():
-                        self.connected = True
-                        print("✅ Telethon переподключен")
-                        return True
+                    await self.client.disconnect()
                 except:
                     pass
+                self.client = None
+            
+            # Удаляем старую сессию
+            session_file = 'parser_session.session'
+            if os.path.exists(session_file):
+                try:
+                    os.remove(session_file)
+                    print("🗑️ Удалена старая сессия")
+                except Exception as e:
+                    print(f"⚠️ Не удалось удалить сессию: {e}")
             
             print(f"🔗 Подключаю Telethon...")
             
@@ -31,8 +36,11 @@ class TelegramParser:
                 'parser_session',
                 config.API_ID,
                 config.API_HASH,
-                connection_retries=10,
-                timeout=30
+                connection_retries=5,
+                timeout=30,
+                device_model="Python Parser",
+                system_version="4.16.30",
+                app_version="1.0"
             )
             
             await self.client.start()
@@ -51,10 +59,12 @@ class TelegramParser:
             if not self.client or not self.connected:
                 return await self.connect()
             
+            # Проверяем, работает ли подключение
             try:
                 await self.client.get_me()
                 return True
-            except:
+            except Exception as e:
+                print(f"⚠️ Потеряно соединение: {e}")
                 self.connected = False
                 return await self.connect()
                 
@@ -70,12 +80,14 @@ class TelegramParser:
                 await self.client.disconnect()
             except:
                 pass
+            self.client = None
             self.connected = False
             print("🔌 Telethon отключен")
     
     async def get_channel_info(self, username):
         """Получить информацию о канале"""
         try:
+            # Проверяем подключение перед каждым запросом
             if not await self.ensure_connected():
                 print(f"❌ Нет подключения к Telegram")
                 return None
@@ -83,9 +95,28 @@ class TelegramParser:
             if not username.startswith('@'):
                 username = '@' + username
             
+            # Простая валидация
+            if len(username) < 3:
+                print(f"❌ Слишком короткий username: {username}")
+                return None
+            
             print(f"🔍 Получаю данные {username}")
             
-            entity = await self.client.get_entity(username)
+            try:
+                entity = await self.client.get_entity(username)
+            except ValueError as e:
+                print(f"❌ Неверный формат username {username}: {e}")
+                return None
+            except errors.UsernameNotOccupiedError:
+                print(f"❌ Username {username} не существует")
+                return None
+            except errors.FloodWaitError as e:
+                print(f"⚠️ Флуд-вейт: {e.seconds} секунд")
+                await asyncio.sleep(e.seconds)
+                return None
+            except Exception as e:
+                print(f"❌ Ошибка получения entity {username}: {e}")
+                return None
             
             try:
                 full = await self.client(GetFullChannelRequest(channel=entity))
@@ -119,6 +150,7 @@ class TelegramParser:
     async def get_channel_posts_last_week(self, username):
         """Получить посты из канала за последние 7 дней"""
         try:
+            # Проверяем подключение перед каждым запросом
             if not await self.ensure_connected():
                 print(f"❌ Нет подключения к Telegram")
                 return []
@@ -126,9 +158,13 @@ class TelegramParser:
             if not username.startswith('@'):
                 username = '@' + username
             
-            entity = await self.client.get_entity(username)
+            try:
+                entity = await self.client.get_entity(username)
+            except Exception as e:
+                print(f"❌ Не удалось получить entity для {username}: {e}")
+                return []
             
-            # ИСПРАВЛЕНО: Используем naive datetime (без часового пояса)
+            # Вычисляем дату 7 дней назад (без часового пояса)
             week_ago = datetime.now() - timedelta(days=7)
             
             posts = []
@@ -136,43 +172,47 @@ class TelegramParser:
             
             print(f"📅 Собираю посты за последние 7 дней для {username}...")
             
-            async for message in self.client.iter_messages(entity, offset_date=datetime.now(), reverse=False):
-                if message is None or not hasattr(message, 'id'):
-                    continue
-                
-                # ИСПРАВЛЕНО: Убираем часовой пояс из даты сообщения
-                message_date = message.date.replace(tzinfo=None)
-                
-                if message_date < week_ago:
-                    break
-                
-                post_count += 1
-                
-                message_text = ""
-                if hasattr(message, 'message') and message.message:
-                    message_text = message.message
-                elif hasattr(message, 'text') and message.text:
-                    message_text = message.text
-                
-                reaction_count = 0
-                if hasattr(message, 'reactions') and message.reactions:
-                    if hasattr(message.reactions, 'results'):
-                        for reaction in message.reactions.results:
-                            reaction_count += reaction.count
-                    elif hasattr(message.reactions, 'recent_reactions'):
-                        reaction_count = len(message.reactions.recent_reactions)
-                
-                views = getattr(message, 'views', 0)
-                forwards = getattr(message, 'forwards', 0)
-                
-                posts.append({
-                    'message_id': message.id,
-                    'date': message_date,  # Уже naive datetime
-                    'views': views,
-                    'reactions': reaction_count,
-                    'forwards': forwards,
-                    'text': message_text
-                })
+            try:
+                async for message in self.client.iter_messages(entity, offset_date=datetime.now(), reverse=False):
+                    if message is None or not hasattr(message, 'id'):
+                        continue
+                    
+                    # Приводим дату сообщения к naive datetime
+                    message_date = message.date.replace(tzinfo=None)
+                    
+                    if message_date < week_ago:
+                        break
+                    
+                    post_count += 1
+                    
+                    message_text = ""
+                    if hasattr(message, 'message') and message.message:
+                        message_text = message.message
+                    elif hasattr(message, 'text') and message.text:
+                        message_text = message.text
+                    
+                    reaction_count = 0
+                    if hasattr(message, 'reactions') and message.reactions:
+                        if hasattr(message.reactions, 'results'):
+                            for reaction in message.reactions.results:
+                                reaction_count += reaction.count
+                        elif hasattr(message.reactions, 'recent_reactions'):
+                            reaction_count = len(message.reactions.recent_reactions)
+                    
+                    views = getattr(message, 'views', 0)
+                    forwards = getattr(message, 'forwards', 0)
+                    
+                    posts.append({
+                        'message_id': message.id,
+                        'date': message_date,
+                        'views': views,
+                        'reactions': reaction_count,
+                        'forwards': forwards,
+                        'text': message_text
+                    })
+            except Exception as e:
+                print(f"❌ Ошибка при итерации сообщений {username}: {e}")
+                return []
             
             print(f"📊 Собрано {post_count} постов за последние 7 дней для {username}")
             return posts
@@ -231,9 +271,8 @@ class TelegramParser:
         """Обновить все каналы"""
         print("🔄 Начинаю обновление всех каналов...")
         
-        if not await self.ensure_connected():
-            print("❌ Не удалось подключиться к Telegram")
-            return []
+        # Принудительно переподключаемся перед массовым обновлением
+        await self.connect()
         
         channels = await db.get_all_approved_channels()
         if not channels:
@@ -243,6 +282,11 @@ class TelegramParser:
         results = []
         for channel_id, username, title in channels:
             print(f"📊 Обновляю {title}...")
+            
+            # Для каждого канала проверяем соединение
+            if not await self.ensure_connected():
+                print(f"❌ Потеряно соединение, пропускаю {username}")
+                continue
             
             result = await self.update_channel_stats(username, db)
             if result:
